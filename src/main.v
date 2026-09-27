@@ -186,6 +186,29 @@ wire         SNES_ARAM_WE_N;
 
 wire  [6:0] MAP_ACTIVE;
 
+wire        SS_BUSY;
+wire  [7:0] SS_DO;
+wire [23:0] SS_ROM_ADDR;
+
+wire [19:0] SS_EXT_ADDR;
+wire  [7:0] SS_SPC_DI;
+wire  [7:0] SS_PPU_DI;
+wire  [7:0] SS_DSPN_DI;
+wire  [7:0] SS_GSU_DI;
+wire        SS_DO_OVR;
+wire        SS_ROM_OVR;
+wire        SS_ARAM_SEL, SS_DSP_REGS_SEL, SS_SMP_SEL;
+wire        SS_BSRAM_SEL;
+wire        SS_DSPN_REGS_SEL, SS_DSPN_RAM_SEL;
+wire        SS_GSU_SEL;
+
+wire  [7:0] SS_CX4_DO_REG;
+wire  [7:0] SS_CX4_DO_CACHE;
+wire  [7:0] SS_CX4_DI;
+wire        SS_CX4_SEL;
+wire        SS_CX4_CACHE_SEL;
+wire        SS_CX4_IDLE;
+
 SNES SNES
 (
 	.MCLK(MCLK),
@@ -301,8 +324,6 @@ SNES SNES
 	.AUDIO_R(AUDIO_R),
 	.AUDIO_READY(AUDIO_READY)
 );
-
-
 
 wire  [7:0] MSU_DO;
 wire        MSU_SEL;
@@ -934,28 +955,6 @@ end else
 assign MAP_ACTIVE[6] = 0;
 endgenerate
 
-wire        SS_BUSY;
-wire  [7:0] SS_DO;
-wire [23:0] SS_ROM_ADDR;
-
-wire [19:0] SS_EXT_ADDR;
-wire  [7:0] SS_SPC_DI;
-wire  [7:0] SS_PPU_DI;
-wire  [7:0] SS_DSPN_DI;
-wire  [7:0] SS_GSU_DI;
-wire        SS_DO_OVR;
-wire        SS_ROM_OVR;
-wire        SS_ARAM_SEL, SS_DSP_REGS_SEL, SS_SMP_SEL;
-wire        SS_BSRAM_SEL;
-wire        SS_DSPN_REGS_SEL, SS_DSPN_RAM_SEL;
-wire        SS_GSU_SEL;
-
-wire  [7:0] SS_CX4_DO_REG;
-wire  [7:0] SS_CX4_DO_CACHE;
-wire  [7:0] SS_CX4_DI;
-wire        SS_CX4_SEL;
-wire        SS_CX4_CACHE_SEL;
-wire        SS_CX4_IDLE;
 assign SS_CX4_DI = SS_CX4_CACHE_SEL ? SS_CX4_DO_CACHE : SS_CX4_DO_REG;
 // Hold the snapshot until the CX4 is idle (only when a CX4 cart is active).
 wire        CX4_SS_OK = ~MAP_ACTIVE[0] | SS_CX4_IDLE;
