@@ -12,6 +12,7 @@ module ppusprbuf (
 
 reg [8:0] mem [0:255];
 reg [8:0] doutb;
+
 assign q_b = doutb;
 
 always @(posedge clock) begin
@@ -22,8 +23,13 @@ end
 always @(posedge clock) begin
     if (wren_b) begin
         mem[address_b] <= 9'd0;
+`ifdef GOWIN
     end else
-        doutb <= mem[address_b];
+       doutb <= mem[address_b];
+`else
+    end
+    doutb <= mem[address_b];
+`endif
 end
 
 endmodule
