@@ -254,6 +254,7 @@ always @(*) begin
         next_port[0] = PORT_CPU;
         next_din[0]  = cpu_din;
         next_ds[0]   = cpu_ds;
+`ifdef SDRAM_16M
         if (cpu_port) begin
             // Remap logical WRAM at 0x7E0000-0x7FFFFF to the final
             // 128KB of the 6MB CPU region: bank 1, 0x1E0000-0x1FFFFF.
@@ -267,6 +268,11 @@ always @(*) begin
             next_we[0]   = cpu_we;
             next_oe[0]   = ~cpu_we;
         end
+`else
+        next_addr[0] = { 2'b00, cpu_addr, 1'b0 };       // CPU uses bank 0, WRAM at the end
+        next_we[0]   = cpu_we;
+        next_oe[0]   = ~cpu_we;
+`endif
     end else if (bsram_req ^ bsram_req_ack) begin
         next_port[0] = PORT_BSRAM;
         next_addr[0] = { 2'b01, 3'b011, bsram_addr };   // BSRAM at physical 3MB in bank 1

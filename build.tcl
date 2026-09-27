@@ -48,7 +48,7 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/primer25k/gowin_pll_27.v"
     add_file -type verilog "src/primer25k/gowin_pll_hdmi.v"
     add_file -type verilog "src/primer25k/gowin_pll_snes.v"
-    add_file -type verilog "src/primer25k/sdram_cl2_3ch.v"
+    add_file -type verilog "src/sdram_cl2_3ch.v"
     set_option -output_base_name snestang_${dev}_${controller}
 } elseif {$dev eq "mistle_gw5a_25"} {
     set_device GW5A-LV25LQ144C1/I0 -device_version A
@@ -60,7 +60,7 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/mistle_gw5a_25/gowin_pll_27.v"
     add_file -type verilog "src/mistle_gw5a_25/gowin_pll_hdmi.v"
     add_file -type verilog "src/mistle_gw5a_25/gowin_pll_snes.v"
-    add_file -type verilog "src/mistle_gw5a_25/sdram_cl2_3ch.v"
+    add_file -type verilog "src/sdram_cl2_3ch.v"
     add_file -type verilog "src/mistle/mcu_spi.v"
     add_file -type verilog "src/mistle/hid.v"
     set_option -output_base_name snestang_${dev}
@@ -79,7 +79,7 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/primer25k/gowin_pll_27.v"
     add_file -type verilog "src/primer25k/gowin_pll_hdmi.v"
     add_file -type verilog "src/primer25k/gowin_pll_snes.v"
-    add_file -type verilog "src/primer25k/sdram_cl2_3ch.v"
+    add_file -type verilog "src/sdram_cl2_3ch.v"
     set_option -output_base_name snestang_${dev}_${controller}
 } elseif {$dev eq "mega138k"} {
     set_device GW5AST-LV138FPG676AES -device_version B
@@ -115,7 +115,7 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/primer25k/gowin_pll_27.v"
     add_file -type verilog "src/primer25k/gowin_pll_hdmi.v"
     add_file -type verilog "src/primer25k/gowin_pll_snes.v"
-    add_file -type verilog "src/primer25k/sdram_cl2_3ch.v"
+    add_file -type verilog "src/sdram_cl2_3ch.v"
     set_option -output_base_name snestang_${dev}_${controller}
 } else {
     error "Unknown device $dev"
