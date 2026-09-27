@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BaliProject version="3.2" title="snestang" device="LFE5U-25F-6BG256C" default_implementation="impl">
+    <Options/>
+    <Implementation title="impl" dir="impl" description="impl" synthesis="synplify" default_strategy="Strategy1">
+        <Options VerilogStandard="System Verilog" def_top="spram" top="snestang_top"/>
+        <Source name="../snestang_top.v" type="Verilog" type_short="Verilog">
+            <Options top_module="snestang_top"/>
+        </Source>
+        <Source name="config.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="ecp5_pll.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="ecp5_hdmi_pll.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../sdram_cl2_3ch.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../dpram.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../spram.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../CEGen.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../DSP.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../DSP_PKG.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../ppucgram.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../ppuhoam.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../ppuoam.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../ppusprbuf.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../PPU.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../PPU_PKG.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SPC700/AddrGen.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SPC700/AddSub.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SPC700/ALU.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SPC700/BCDAdj.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SPC700/MCode.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SPC700/MulDiv.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SPC700/SPC700.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SPC700/SPC700_pkg.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../65C816/AddrGen.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../65C816/AddSubBCD.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../65C816/ALU.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../65C816/BCDAdder.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../65C816/MCode.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../65C816/P65816_pkg.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../65C816/P65C816.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../chip/DSP/DSP_LHRomMap.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../chip/DSP/DSPn.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../chip/DSP/OBC1.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../chip/SRTC.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SMP.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SWRAM.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../CPU.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../SNES.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../main.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../snes2hdmi.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../hdmi2/audio_clock_regeneration_packet.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../hdmi2/audio_info_frame.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../hdmi2/audio_sample_packet.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../hdmi2/auxiliary_video_information_info_frame.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../hdmi2/hdmi.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../hdmi2/packet_assembler.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../hdmi2/packet_picker.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../hdmi2/serializer.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../hdmi2/source_product_description_info_frame.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../hdmi2/tmds_channel.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../iosys/simpleuart.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/simplespimaster.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/spiflash.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/textdisp.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/textdisp_ram.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/spi_master.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/iosys_serv.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_aligner.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_alu.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_bufreg.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_bufreg2.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_compdec.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_csr.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_ctrl.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_debug.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_decode.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_immdec.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_mem_if.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_rf_if.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_rf_ram.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_rf_ram_if.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_rf_top.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_state.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_synth_wrapper.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/rtl/serv_top.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/servile/servile.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/servile/servile_arbiter.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../iosys/serv/servile/servile_mux.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../smc_parser.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../controller_adapter.sv" type="Verilog" type_short="Verilog">
+            <Options VerilogStandard="System Verilog"/>
+        </Source>
+        <Source name="../mistle/hid.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../mistle/mcu_spi.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="snestang.lpf" type="Logic Preference" type_short="LPF">
+            <Options/>
+        </Source>
+        <Source name="snestang.sdc" type="Synplify Design Constraints File" type_short="SDC">
+            <Options/>
+        </Source>
+    </Implementation>
+    <Strategy name="Strategy1" file="snestang1.sty"/>
+</BaliProject>
