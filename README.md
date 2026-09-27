@@ -8,6 +8,21 @@ There is currently an [IcePi-Zero](src/icepi-zero) build with USB HID support. I
 
 The USB HID controllers run in FPGA gateware; IcePi-Zero has no dedicated USB controller chip for them. Some USB HID devices may therefore be incompatible. Each port supports one device, so USB hubs and composite devices such as combined keyboard/mouse units may not work. Low-speed and full-speed USB 2.0 HID devices are the intended devices. This limitation is also described in the [IcePi-Zero Minimig USB support notes](https://github.com/m1nl/icepi-zero-minimig/blob/main/README.md#usb-support).
 
+On IcePi-Zero, the first player uses the second USB port, the one closer to the PCB edge, for easier physical access. The other USB port is for the second player.
+
+## Controller buttons
+
+Controllers without dedicated Start and Select buttons can use these chords:
+
+| Hold | Press | SNES button |
+| --- | --- | --- |
+| X + Y | A | Start |
+| X + Y | B | Select |
+
+The mapping applies to both players and all controller inputs. Dedicated Start and Select buttons still work. While either chord is held, its face buttons are not sent to the game; directions and shoulder buttons still work.
+
+Press **Select + Right** to open the on-screen display (OSD).
+
 ## Changes from the original core
 
 At a high level, the work since [`fbd8217`](https://github.com/m1nl/snestang/compare/fbd8217a7ca9d3c620bd548c8d19c91c71009c3e...mistle) includes:

@@ -309,6 +309,62 @@ wire [1:0] snes_joy1_di, snes_joy2_di;
 // Controller sources share a wired OR so enabled controllers can coexist.
 wor [11:0] joy1_btns, joy2_btns;
 wire [11:0] hid1, hid2;
+`ifndef MCU_BL616
+assign hid1 = 12'b0;
+assign hid2 = 12'b0;
+`endif
+
+// SNES order: R L X A Right Left Down Up Start Select Y B.
+// For pads without Start/Select, hold X+Y and press A/B respectively.
+// Consume the face buttons while a chord is active so games see only
+// Start/Select (plus any held directions or shoulder buttons).
+function [11:0] map_joy_chords;
+    input [11:0] buttons;
+    input chord_start, chord_select;
+    reg chord_active;
+    begin
+        chord_active = chord_start | chord_select;
+        map_joy_chords = buttons;
+        map_joy_chords[9:8] = buttons[9:8] & {2{~chord_active}}; // X, A
+        map_joy_chords[3] = buttons[3] | chord_start;   // Start
+        map_joy_chords[2] = buttons[2] | chord_select;  // Select
+        map_joy_chords[1:0] = buttons[1:0] & {2{~chord_active}}; // Y, B
+    end
+endfunction
+
+wire [11:0] joy_raw [0:1];
+wire [11:0] hid_raw [0:1];
+wire [11:0] joy_mapped [0:1];
+wire [11:0] joy_snes_mapped [0:1];
+assign joy_raw[0] = joy1_btns;
+assign joy_raw[1] = joy2_btns;
+assign hid_raw[0] = hid1;
+assign hid_raw[1] = hid2;
+
+genvar joy_idx;
+generate for (joy_idx = 0; joy_idx < 2; joy_idx = joy_idx + 1) begin : joy_chords
+    wire [11:0] snes_raw = joy_raw[joy_idx] | hid_raw[joy_idx];
+    reg [1:0] chord_q, snes_chord_q; // {Start, Select}
+
+    // Only chord detection is registered; ordinary buttons stay combinational.
+    always @(posedge mclk or negedge resetn) begin
+        if (!resetn) begin
+            chord_q <= 2'b0;
+            snes_chord_q <= 2'b0;
+        end else begin
+            chord_q <= {joy_raw[joy_idx][9] & joy_raw[joy_idx][1] & joy_raw[joy_idx][8],
+                        joy_raw[joy_idx][9] & joy_raw[joy_idx][1] & joy_raw[joy_idx][0]};
+            snes_chord_q <= {snes_raw[9] & snes_raw[1] & snes_raw[8],
+                             snes_raw[9] & snes_raw[1] & snes_raw[0]};
+        end
+    end
+
+    assign joy_mapped[joy_idx] = map_joy_chords(joy_raw[joy_idx], chord_q[1], chord_q[0]);
+    assign joy_snes_mapped[joy_idx] = map_joy_chords(snes_raw, snes_chord_q[1], snes_chord_q[0]);
+end endgenerate
+
+wire [11:0] joy1_mapped = joy_mapped[0], joy2_mapped = joy_mapped[1];
+wire [11:0] joy1_snes_mapped = joy_snes_mapped[0], joy2_snes_mapped = joy_snes_mapped[1];
 
 wire pause_snes_for_frame_sync;
 
@@ -797,11 +853,11 @@ hid hid (
 // output button presses to SNES
 controller_adapter joy1_adapter (
     .clk(mclk), .snes_joy_strb(snes_joy_strb),
-    .snes_buttons(joy1_btns | hid1), .snes_joy_clk(snes_joy1_clk), .snes_joy_di(snes_joy1_di[0])
+    .snes_buttons(joy1_snes_mapped), .snes_joy_clk(snes_joy1_clk), .snes_joy_di(snes_joy1_di[0])
 );
 controller_adapter joy2_adapter (
     .clk(mclk), .snes_joy_strb(snes_joy_strb),
-    .snes_buttons(joy2_btns | hid2), .snes_joy_clk(snes_joy2_clk), .snes_joy_di(snes_joy2_di[0])
+    .snes_buttons(joy2_snes_mapped), .snes_joy_clk(snes_joy2_clk), .snes_joy_di(snes_joy2_di[0])
 );
 
 assign snes_joy1_di[1] = 0;  // P3
@@ -839,7 +895,7 @@ iosys_bl616 #(.CORE_ID(CORE_ID), .FREQ(SNES_FREQ)) iosys (
     .clk(mclk), .hclk(hclk), .resetn(resetn),
     .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y),
     .overlay_color(overlay_color),
-    .joy1(joy1_btns), .joy2(joy2_btns), .hid1(hid1), .hid2(hid2),
+    .joy1(joy1_mapped), .joy2(joy2_mapped), .hid1(hid1), .hid2(hid2),
     .uart_tx(UART_TXD), .uart_rx(UART_RXD),
     .rom_loading(loading), .rom_do(loader_do), .rom_do_valid(loader_do_valid)
 );
@@ -858,7 +914,7 @@ iosys_picorv32
     .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y),
     .overlay_color(overlay_color),
 
-    .joy1(joy1_btns), .joy2(joy2_btns),
+    .joy1(joy1_mapped), .joy2(joy2_mapped),
 
     .rom_loading(loading), .rom_do(loader_do), .rom_do_valid(loader_do_valid), .rom_do_ready(loader_do_ready),
     .ram_busy(sdram_busy),

@@ -30,8 +30,6 @@ set_multicycle_path 2 -hold -start -from [get_clocks {fclk}] -to [get_clocks {mc
 //set_multicycle_path 5 -hold -end -from [get_nets {main/SNES/PPU/BG*}] -to [get_clocks {fclk}]
 
 // false paths
-set_false_path -from [get_clocks {fclk}] -to [get_clocks {hclk}]
-set_false_path -from [get_clocks {mclk}] -to [get_clocks {hclk}]
 //set_false_path -from [get_clocks {uclk}] -to [get_clocks {mclk}]
 //set_false_path -from [get_regs {main/SNES/smp/CPUO*}] -to [get_regs {sdram/dq_out*}]
 
