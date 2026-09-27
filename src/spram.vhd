@@ -9,20 +9,20 @@ use work.board_config.all;
 
 entity spram_sz is
 	generic (
-		ADDR_WIDTH    : integer := 8;
-		DATA_WIDTH    : integer := 8;
-		NUMWORDS      : integer := 2 ** 8;
+		ADDR_WIDTH	  : integer := 8;
+		DATA_WIDTH	  : integer := 8;
+		NUMWORDS	  : integer := 2 ** 8;
 		MEM_INIT_FILE : string := "";
-		MEM_NAME      : string := "MEM"
+		MEM_NAME	  : string := "MEM"
 	);
 	port (
-		clock   : in  std_logic;
+		clock	: in  std_logic;
 		address : in  std_logic_vector(ADDR_WIDTH - 1 downto 0);
-		data    : in  std_logic_vector(DATA_WIDTH - 1 downto 0) := (others => '0');
-		enable  : in  std_logic := '1';
-		wren    : in  std_logic := '0';
-		q       : out std_logic_vector(DATA_WIDTH - 1 downto 0);
-		cs      : in  std_logic := '1'
+		data	: in  std_logic_vector(DATA_WIDTH - 1 downto 0) := (others => '0');
+		enable	: in  std_logic := '1';
+		wren	: in  std_logic := '0';
+		q		: out std_logic_vector(DATA_WIDTH - 1 downto 0);
+		cs		: in  std_logic := '1'
 	);
 end entity spram_sz;
 
@@ -31,13 +31,13 @@ architecture rtl of spram_sz is
 		std_logic_vector(DATA_WIDTH - 1 downto 0);
 
 	impure function init_ram_hex(file_name : string) return ram_t is
-		file init_file       : text;
+		file init_file		 : text;
 		variable open_status : file_open_status;
 		variable input_line  : line;
-		variable word        : std_logic_vector(DATA_WIDTH - 1 downto 0);
-		variable good        : boolean;
-		variable init_addr   : natural := 0;
-		variable result      : ram_t := (others => (others => '0'));
+		variable word		 : std_logic_vector(DATA_WIDTH - 1 downto 0);
+		variable good		 : boolean;
+		variable init_addr	 : natural := 0;
+		variable result		 : ram_t := (others => (others => '0'));
 	begin
 		if file_name'length > 0 then
 			file_open(open_status, init_file, file_name, read_mode);
@@ -66,19 +66,34 @@ architecture rtl of spram_sz is
 	attribute syn_ramstyle : string;
 	attribute syn_ramstyle of mem : signal is "block_ram";
 begin
-	process (clock)
-	begin
-		if rising_edge(clock) then
-			if enable = '1' then
-				if cs = '1' and wren = '1' then
-					mem(to_integer(unsigned(address))) <= data;
-				end if;
-				if cs = '0' or wren = '0' or VENDOR /= VENDOR_GOWIN then
-					q <= mem(to_integer(unsigned(address)));
+	gen_gowin : if VENDOR = VENDOR_GOWIN generate
+		process (clock)
+		begin
+			if rising_edge(clock) then
+				if enable = '1' then
+					if cs = '1' and wren = '1' then
+						mem(to_integer(unsigned(address))) <= data;
+					else
+						q <= mem(to_integer(unsigned(address)));
+					end if;
 				end if;
 			end if;
-		end if;
-	end process;
+		end process;
+	end generate;
+
+	gen_other : if VENDOR /= VENDOR_GOWIN generate
+		process (clock)
+		begin
+			if rising_edge(clock) then
+				if enable = '1' then
+					q <= mem(to_integer(unsigned(address)));
+					if cs = '1' and wren = '1' then
+						mem(to_integer(unsigned(address))) <= data;
+					end if;
+				end if;
+			end if;
+		end process;
+	end generate;
 end architecture rtl;
 
 library ieee;
@@ -86,19 +101,19 @@ use ieee.std_logic_1164.all;
 
 entity spram is
 	generic (
-		ADDR_WIDTH    : integer := 8;
-		DATA_WIDTH    : integer := 8;
+		ADDR_WIDTH	  : integer := 8;
+		DATA_WIDTH	  : integer := 8;
 		MEM_INIT_FILE : string := "";
-		MEM_NAME      : string := "MEM"
+		MEM_NAME	  : string := "MEM"
 	);
 	port (
-		clock   : in  std_logic;
+		clock	: in  std_logic;
 		address : in  std_logic_vector(ADDR_WIDTH - 1 downto 0);
-		data    : in  std_logic_vector(DATA_WIDTH - 1 downto 0) := (others => '0');
-		enable  : in  std_logic := '1';
-		wren    : in  std_logic := '0';
-		q       : out std_logic_vector(DATA_WIDTH - 1 downto 0);
-		cs      : in  std_logic := '1'
+		data	: in  std_logic_vector(DATA_WIDTH - 1 downto 0) := (others => '0');
+		enable	: in  std_logic := '1';
+		wren	: in  std_logic := '0';
+		q		: out std_logic_vector(DATA_WIDTH - 1 downto 0);
+		cs		: in  std_logic := '1'
 	);
 end entity spram;
 

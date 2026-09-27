@@ -23,7 +23,7 @@ localparam [14:0] COLOR_TEXT    = 15'b10000_11111_11111;    // yellow
 //localparam [14:0] COLOR_TEXT    = 15'b11000_11000_11000;    // white
 localparam [14:0] COLOR_CURSOR  = 15'b10000_11000_11111;    // orange
 // parameter [14:0] COLOR_LOGO    = 15'b00000_10101_00000;    // green
-parameter [14:0] COLOR_LOGO    = 15'b00000_10011_11111;   
+parameter [14:0] COLOR_LOGO    = 15'b00000_10011_11111;
 
 // 72x14 pixels 1bpp logo
 localparam LOGO_X = 128-36;
@@ -32,7 +32,7 @@ localparam LOGO_Y = 201;
 //
 // Pixel output logic for characters and logo:
 // 1. To improve timing, output logic is broken into 3 cycles.
-// 2. Char buffer, font rom, logo rom are all stored in the same bram 
+// 2. Char buffer, font rom, logo rom are all stored in the same bram
 //    block to save LUTs.
 //
 reg [10:0] mem_addr_b;
@@ -50,14 +50,18 @@ wire [6:0] text_char = reg_char_di[6:0];
 // $000-$37F: Character buffer RAM (32*28)
 // $380-$3FF: Logo ROM (14*9 bytes)
 // $400-$800: Font ROM
-gowin_dpb_menu menu_mem (
-    .clka(clk), .reseta(1'b0), .ocea(), .cea(1'b1), 
-    .ada({1'b0, text_y, text_x}), .wrea(reg_char_we[0] && cmd == 2'd0),
-    .dina({1'b0, text_char}), .douta(), 
+textdisp_ram text_disp_ram_0 (
+    .clka(clk),
+    .addra({1'b0, text_y, text_x}),
+    .wrena(reg_char_we[0] && cmd == 2'd0),
+    .dina({1'b0, text_char}),
+    .douta(),
 
-    .clkb(hclk), .resetb(1'b0), .oceb(), .ceb(1'b1), 
-    .adb(mem_addr_b), .wreb(1'b0), 
-    .dinb(), .doutb(mem_do_b)
+    .clkb(hclk),
+    .addrb(mem_addr_b),
+    .wrenb(1'b0),
+    .dinb(8'b0),
+    .doutb(mem_do_b)
 );
 
 reg [6:0] logo_addr;
@@ -76,8 +80,8 @@ localparam OUTPUT = 3;      // output new pixel and fetch character
 always @* begin             // address and output logic
     color = color_buf;
     case (state)
-    MAIN:           mem_addr_b = {1'b0, y[7:3], x[7:3]};   
-    FETCH_FONT:     mem_addr_b = {1'b1, mem_do_b[7] ? 7'h3F : mem_do_b[6:0], y[2:0]};  
+    MAIN:           mem_addr_b = {1'b0, y[7:3], x[7:3]};
+    FETCH_FONT:     mem_addr_b = {1'b1, mem_do_b[7] ? 7'h3F : mem_do_b[6:0], y[2:0]};
     FETCH_LOGO:     mem_addr_b = {4'b0111, logo_addr};
     OUTPUT: begin
         mem_addr_b = {1'b0, y[7:3], x[7:3]};
@@ -94,7 +98,7 @@ always @(posedge hclk) begin    // actual state machine
     reg [7:0] logo_x, logo_y;
 
     x_r <= x;
-    
+
     case (state)
     MAIN, OUTPUT: begin
         state <= MAIN;

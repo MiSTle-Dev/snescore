@@ -10,15 +10,15 @@ entity dpram is
 		DATA_WIDTH : integer := 8
 	);
 	port (
-		clock     : in  std_logic;
-		data_a    : in  std_logic_vector(DATA_WIDTH - 1 downto 0);
-		data_b    : in  std_logic_vector(DATA_WIDTH - 1 downto 0);
-		address_a : in  std_logic_vector(ADDR_WIDTH - 1 downto 0);
-		address_b : in  std_logic_vector(ADDR_WIDTH - 1 downto 0);
-		wren_b    : in  std_logic;
-		wren_a    : in  std_logic;
-		q_a       : out std_logic_vector(DATA_WIDTH - 1 downto 0);
-		q_b       : out std_logic_vector(DATA_WIDTH - 1 downto 0)
+		clock	  : in	std_logic;
+		data_a	  : in	std_logic_vector(DATA_WIDTH - 1 downto 0);
+		data_b	  : in	std_logic_vector(DATA_WIDTH - 1 downto 0);
+		address_a : in	std_logic_vector(ADDR_WIDTH - 1 downto 0);
+		address_b : in	std_logic_vector(ADDR_WIDTH - 1 downto 0);
+		wren_b	  : in	std_logic;
+		wren_a	  : in	std_logic;
+		q_a		  : out std_logic_vector(DATA_WIDTH - 1 downto 0);
+		q_b		  : out std_logic_vector(DATA_WIDTH - 1 downto 0)
 	);
 end entity dpram;
 
@@ -29,27 +29,49 @@ architecture rtl of dpram is
 	attribute syn_ramstyle : string;
 	attribute syn_ramstyle of mem : signal is "block_ram";
 begin
-	process (clock)
-	begin
-		if rising_edge(clock) then
-			if wren_a = '1' then
-				mem(to_integer(unsigned(address_a))) <= data_a;
+	gen_gowin : if VENDOR = VENDOR_GOWIN generate
+		process (clock)
+		begin
+			if rising_edge(clock) then
+				if wren_a = '1' then
+					mem(to_integer(unsigned(address_a))) <= data_a;
+				else
+					q_a <= mem(to_integer(unsigned(address_a)));
+				end if;
 			end if;
-			if wren_a = '0' or VENDOR /= VENDOR_GOWIN then
-				q_a <= mem(to_integer(unsigned(address_a)));
-			end if;
-		end if;
-	end process;
+		end process;
 
-	process (clock)
-	begin
-		if rising_edge(clock) then
-			if wren_b = '1' then
-				mem(to_integer(unsigned(address_b))) <= data_b;
+		process (clock)
+		begin
+			if rising_edge(clock) then
+				if wren_b = '1' then
+					mem(to_integer(unsigned(address_b))) <= data_b;
+				else
+					q_b <= mem(to_integer(unsigned(address_b)));
+				end if;
 			end if;
-			if wren_b = '0' or VENDOR /= VENDOR_GOWIN then
+		end process;
+	end generate;
+
+	gen_other : if VENDOR /= VENDOR_GOWIN generate
+		process (clock)
+		begin
+			if rising_edge(clock) then
+				q_a <= mem(to_integer(unsigned(address_a)));
+				if wren_a = '1' then
+					mem(to_integer(unsigned(address_a))) <= data_a;
+				end if;
+			end if;
+		end process;
+
+		process (clock)
+		begin
+			if rising_edge(clock) then
 				q_b <= mem(to_integer(unsigned(address_b)));
+				if wren_b = '1' then
+					mem(to_integer(unsigned(address_b))) <= data_b;
+				end if;
 			end if;
-		end if;
-	end process;
+		end process;
+	end generate;
 end architecture rtl;
