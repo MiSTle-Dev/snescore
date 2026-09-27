@@ -1,59 +1,41 @@
-# SNESTang - SNES for Sipeed Tang FPGA Boards
+# SnesTang for MiSTle
 
-<p align="right">
-  <a title="Releases" href="https://github.com/nand2mario/snestang/releases"><img src="https://img.shields.io/github/commits-since/nand2mario/snestang/latest.svg?longCache=true&style=flat-square&logo=git&logoColor=fff"></a>
-</p>
+This project is based on [nand2mario's SNESTang](https://github.com/nand2mario/snestang) and is a work in progress to bring it to the [MiSTle framework](https://github.com/MiSTle-Dev). It retains the improvements from nand2mario's project while adapting the core and its I/O system for MiSTle boards.
 
-<img src="doc/images/snestang-0.7.jpg" width=300>
+There is currently an [IcePi-Zero](src/icepi-zero) build with USB HID support. It also works with the [MiSTle IcePi carrier board](https://github.com/MiSTle-Dev/Boards/tree/main/icepi_carrier), which offers broader USB compatibility with IcePi-Zero. Other board configurations are present in the source tree, but the MiSTle port is still in progress.
 
-SNESTang is an open source project to recreate the Super Nintendo Entertainment System (SNES) with the affordable Sipeed Tang FPGA boards. Currently [Tang Primer 25K](https://wiki.sipeed.com/hardware/en/tang/tang-primer-25k/primer-25k.html), [Tang Mega 60K](https://wiki.sipeed.com/hardware/en/tang/tang-mega-60k/mega-60k.html), [Tang Nano 20K](https://wiki.sipeed.com/hardware/en/tang/tang-nano-20k/nano-20k.html) and [Tang Mega 138K Pro](https://wiki.sipeed.com/hardware/en/tang/tang-mega-138k/mega-138k-pro.html) are supported.
+### USB support
 
-* 720p HDMI output.
-* Cycle accurate gameplay.
-* Supports LoROM, HiROM and ExHiROM.
-* ROM loading from MicroSD with an easy-to-use menu system, powered by a RISC-V softcore.
-* Extension chips: DSP-1/2/3/4, S-RTC, OBC-1.
-* Automatic BSRAM backup and restore.
-* SNES or DS2 controllers.
+The USB HID controllers run in FPGA gateware; IcePi-Zero has no dedicated USB controller chip for them. Some USB HID devices may therefore be incompatible. Each port supports one device, so USB hubs and composite devices such as combined keyboard/mouse units may not work. Low-speed and full-speed USB 2.0 HID devices are the intended devices. This limitation is also described in the [IcePi-Zero Minimig USB support notes](https://github.com/m1nl/icepi-zero-minimig/blob/main/README.md#usb-support).
 
-SNESTang is part of [TangCore](https://github.com/nand2mario/tangcore), along with [NESTang](https://github.com/nand2mario/nestang), [GBATang](https://github.com/nand2mario/gbatang) and [MDTang](https://github.com/nand2mario/mdtang).
+## Changes from the original core
 
-## Setup Instructions
+At a high level, the work since [`fbd8217`](https://github.com/m1nl/snestang/compare/fbd8217a7ca9d3c620bd548c8d19c91c71009c3e...mistle) includes:
 
-To install SNESTang, follow the [TangCore](https://github.com/nand2mario/tangcore) installation instructions.
+1. Changed the I/O soft CPU to SERV in its 4-bit QERV mode to reduce FPGA resource use. The I/O system was also refactored and gained streamed ROM loading.
+2. Updated the SNES core modules from the upstream [MiSTer SNES core](https://github.com/MiSTer-devel/SNES_MiSTer), keeping the migrated VHDL sources where practical. The 65C816 CPU uses its Verilog implementation because the VHDL version used too many LUTs.
+3. Migrated all of nand2mario's improvements, including the existing SNESTang integration and features.
+4. Added MiSTle board support and adapted the build, memory, HDMI, and audio paths for Gowin and Lattice ECP5 targets. Simulation was restored for the mixed Verilog/VHDL design.
+5. Added an IcePi-Zero project and connected the USB HID host to its USB ports.
 
-## Usage
+## Flashing IcePi-Zero
 
-Basic operations
-* .SFC and .SMC roms should be automatically recognized.
-* SELECT-RIGHT BUTTON to open OSD.
+First, get `firmware.bin` from the [SnesTang firmware repository](https://github.com/m1nl/snestang-firmware) and flash it at offset `0x500000`:
 
-Backup SRAM support
-* Many SNES gamepaks include battery-backed SRAM chips to store game saves, for example Super Mario World. Since 0.5, SNESTang supports fully-automatic backup and restore of BSRAM content, with no interruption to the game play.
-* The function is by default turned off. To use it, first enable it in options. Then launch a game with BSRAM support. Every 10 seconds, SNESTang will check if there's new BSRAM content, and if yes saves it into `/saves/<rom_name>.srm`. BSRAM is also automatically restored at game launch if the corresponding .srm file exists, and BSRAM function is on.
-* [List of games](https://www.dkoldies.com/blog/complete-list-of-snes-games-with-save-batteries/) with save batteries.
+```sh
+openFPGALoader -b icepi-zero --write-flash --offset 0x500000 firmware.bin
+```
 
-Core Switching
-* If you create a /cores directory in your SD card and put the relevant .bin files of SNESTang and [NESTang](https://github.com/nand2mario/nestang) there, you will be able to switch between the two cores without connecting the board to your PC. Just choose "Select core" in the main menu and follow the instructions.
+Then flash the IcePi-Zero core bitstream:
 
-## Development
+```sh
+openFPGALoader -b icepi-zero --write-flash path/to/core.bit
+```
 
-[Building TangCore from the source](https://nand2mario.github.io/tangcore/dev-guide/building/)
+Replace `path/to/core.bit` with the path to the built bitstream. Flash the firmware before using the core.
 
-Read the updated [design notes](doc/design.md) to understand the code or to add features.
+## Development and credits
 
-You can also simulate the code with [our verilator harness](verilator). `src/test_loader.v` specifies which rom is used by the simulation. Then `make sim` will start a SDL-based graphical simulation.
+The [design notes](doc/design.md) describe the original SNESTang architecture. The [Verilator harness](verilator) provides simulation support.
 
-Upcoming feature that I may work on,
-
-* [SNAC](https://boogermann.github.io/Bible_MiSTer/hardware/io-board/#serial-io) native controller adapter support.
-
-
-## Special Thanks
-
-* [SNES_FPGA](https://github.com/gyurco/SNES_FPGA) by Sergiy Dvodnenko (srg320) and gyurco. SNESTang is a port of this core for MiSTer and MIST.
-* [hdl-util/hdmi](https://github.com/hdl-util/hdmi) by Sameer Puri.
-
-nand2mario (`nand2mario at outlook.com`)
-
-Since 2024.1
+SNESTang was created by [nand2mario](https://github.com/nand2mario/snestang) as part of [TangCore](https://github.com/nand2mario/tangcore). Its SNES core derives from [SNES_FPGA](https://github.com/gyurco/SNES_FPGA) by Sergiy Dvodnenko (srg320) and gyurco and the [MiSTer SNES core](https://github.com/MiSTer-devel/SNES_MiSTer). HDMI support uses [hdl-util/hdmi](https://github.com/hdl-util/hdmi) by Sameer Puri.
