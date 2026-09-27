@@ -38,7 +38,18 @@ module spiflash #(
     output            reg_wait
 );
 
-reg [1:0] state;
+localparam [3:0] INIT_SELECT = 4'd0,
+                 INIT_FIRST  = 4'd1,
+                 INIT_SECOND = 4'd2,
+                 INIT_FINISH = 4'd3,
+                 INIT_GAP    = 4'd4,
+                 IDLE        = 4'd5,
+                 READ_CMD    = 4'd6,
+                 READ_DATA   = 4'd7,
+                 MMIO        = 4'd8;
+
+reg [3:0] state;
+reg load_pending;
 
 reg ncs_buf = 1'b1;
 assign ncs = ncs_buf;
@@ -53,6 +64,7 @@ assign reg_wait = wait_buf & (reg_byte_we | reg_word_we);
 reg wait_buf = 1;
 reg reg_byte_we_r, reg_word_we_r;
 reg active, new_request;
+wire new_request_t = (reg_byte_we && ~reg_byte_we_r) || (reg_word_we && ~reg_word_we_r);
 
 SPI_Master #(.CLKS_PER_HALF_BIT(CLK_DIV)) spi (
   .i_Clk(clk), .i_Rst_L(resetn),
@@ -63,30 +75,63 @@ SPI_Master #(.CLKS_PER_HALF_BIT(CLK_DIV)) spi (
 
 always @(posedge clk) begin
     if (~resetn) begin
-        state <= 0;
+        state <= INIT_SELECT;
         ncs_buf <= 1'b1;
+        load_pending <= 1'b0;
+        spi_start <= 1'b0;
+        busy <= 1'b0;
+        dout_strb <= 1'b0;
+        wait_buf <= 1'b1;
+        reg_byte_we_r <= 1'b0;
+        reg_word_we_r <= 1'b0;
+        new_request <= 1'b0;
+        active <= 1'b0;
+        cnt <= 0;
     end else begin
-        reg new_request_t = reg_byte_we && ~reg_byte_we_r || reg_word_we && ~reg_word_we_r;
         reg_byte_we_r <= reg_byte_we;
         reg_word_we_r <= reg_word_we;
-        if (new_request_t)
+        if (start)
+            load_pending <= 1'b1;
+        if (state == MMIO && new_request_t)
             new_request <= 1;
 
-        if (reg_ctrl_we)
+        if (state == MMIO && reg_ctrl_we)
             ncs_buf <= reg_di[0];
 
         spi_start <= 0;
         wait_buf <= 1;
         dout_strb <= 0;
         case (state) 
-        2'd0:
-            if (start) begin
+        INIT_SELECT: begin
+            // A previous FPGA configuration read may have left the flash in
+            // dual-I/O continuous read mode. Clock 16 ones on IO0 with /CS low.
+            ncs_buf <= 0;
+            state <= INIT_FIRST;
+        end
+        INIT_FIRST: if (~spi_start && spi_ready) begin
+            data_in <= 8'hff;
+            spi_start <= 1;
+            state <= INIT_SECOND;
+        end
+        INIT_SECOND: if (~spi_start && spi_ready) begin
+            data_in <= 8'hff;
+            spi_start <= 1;
+            state <= INIT_FINISH;
+        end
+        INIT_FINISH: if (~spi_start && spi_ready) begin
+            ncs_buf <= 1;
+            state <= INIT_GAP;
+        end
+        INIT_GAP: state <= IDLE;
+        IDLE:
+            if (load_pending || start) begin
                 ncs_buf <= 0;
-                state <= 2'd1;
+                state <= READ_CMD;
                 cnt <= 0;
                 busy <= 1;
+                load_pending <= 0;
             end
-        2'd1: if (~spi_start && spi_ready) begin     // send READ (03h) command
+        READ_CMD: if (~spi_start && spi_ready) begin // send READ (03h) command
             cnt <= cnt + 1;
             spi_start <= 1;
             case (cnt[2:0])
@@ -96,25 +141,27 @@ always @(posedge clk) begin
             3'd3: data_in <= ADDR[7:0];
             3'd4: begin
                 // start receiving first byte
-                state <= 2'd2;
+                state <= READ_DATA;
                 cnt <= 1;
                 data_in <= 0;
             end
             default: ;
             endcase
         end
-        2'd2: if (~spi_start && spi_ready) begin    // read back LEN bytes
-            cnt <= cnt + 21'd1;
-            if (cnt == LEN) begin
-                state <= 2'd3;
-                busy <= 0;
-                ncs_buf <= 1'b1;
-            end
-            spi_start <= 1;
+        READ_DATA: if (~spi_start && spi_ready) begin // read back LEN bytes
             dout <= data_out;
             dout_strb <= 1'b1;
+            if (cnt == LEN) begin
+                state <= MMIO;
+                busy <= 0;
+                ncs_buf <= 1'b1;
+                cnt <= 0;
+            end else begin
+                cnt <= cnt + 21'd1;
+                spi_start <= 1;
+            end
         end
-        2'd3: begin                                 // MMIO
+        MMIO: begin
             if (spi_ready && ~spi_start && (new_request_t || new_request || active)) begin
                 // send
                 if (new_request || new_request_t) begin
@@ -122,10 +169,10 @@ always @(posedge clk) begin
                     spi_start <= 1;
                     active <= 1;
                     new_request <= 0;
-                end else if (reg_word_we && cnt != 2'd3) begin
+                end else if (reg_word_we && cnt != 21'd3) begin
                     data_in <= reg_di[(cnt+1)*8 +: 8];
                     spi_start <= 1;
-                    cnt <= cnt + 2'd1;
+                    cnt <= cnt + 21'd1;
                 end else begin      // last byte is transmitted, let CPU continue
                     wait_buf <= 0;
                     cnt <= 0;
@@ -137,10 +184,9 @@ always @(posedge clk) begin
                     reg_do[cnt*8 +: 8] <= data_out;
             end
         end
+        default: state <= INIT_SELECT;
         endcase
     end
 end
 
 endmodule
-
-
