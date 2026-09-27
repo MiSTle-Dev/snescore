@@ -4,12 +4,13 @@ create_generated_clock -name mclk -source [get_nets {fclk}] -divide_by 4 [get_ne
 
 create_clock -name hclk5 -period 2.694 -waveform {0 1.347} [get_nets {hclk5}]
 create_generated_clock -name hclk -source [get_nets {hclk5}] -master_clock hclk5 -divide_by 5 [get_nets {hclk}]
+create_clock -name uclk -period 16.667 -waveform {0 8.3335} [get_nets {uclk}]
 
 create_clock -name clk_audio -period 20833 -waveform {0 10416} [get_nets {s2h/clk_audio}]
 
 create_clock -name mcu_clk -period 50 -waveform {0 25} [get_ports {mcu_clk}] -add
 
-set_clock_groups -asynchronous -group [get_clocks {clk_sys mclk fclk}] -group [get_clocks {hclk hclk5}] -group [get_clocks {clk_audio}] -group [get_clocks {mcu_clk}]
+set_clock_groups -asynchronous -group [get_clocks {clk_sys mclk fclk}] -group [get_clocks {hclk hclk5}] -group [get_clocks {clk_audio}] -group [get_clocks {mcu_clk}] -group [get_clocks {uclk}]
 
 # see start of sdram_snes.v for detailed timing of sdram
 # SNES to sdram, 3*fclk
@@ -27,6 +28,9 @@ set_multicycle_path 2 -hold -start -from [get_clocks {fclk}] -to [get_clocks {mc
 #set_multicycle_path 5 -hold -end -from [get_nets {main/SNES/PPU/BG*}] -to [get_clocks {fclk}]
 
 # false paths
+set_false_path -from [get_clocks {fclk}] -to [get_clocks {hclk}]
+set_false_path -from [get_clocks {mclk}] -to [get_clocks {hclk}]
+set_false_path -from [get_clocks {uclk}] -to [get_clocks {mclk}]
 #set_false_path -from [get_cells {main/SNES/smp/CPUO*}] -to [get_cells {sdram/dq_out*}]
 
 # The hdmi audio sample words cross from the 48kHz audio clock into the pixel

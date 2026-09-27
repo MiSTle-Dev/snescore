@@ -94,6 +94,14 @@ module snestang_top #(
     output ds_cs2,
 `endif
 
+`ifdef CONTROLLER_USB_HID
+    // Two USB HID gamepads; each port is connected directly to USB D+/D-.
+    inout [1:0] usb_dp,
+    inout [1:0] usb_dn,
+    output [1:0] usb_pull_dp,
+    output [1:0] usb_pull_dn,
+`endif
+
 `ifdef CONTROLLER_MISTLE
     // FPGA Companion
     input mcu_din,
@@ -128,6 +136,8 @@ wire fclk_p /* synthesis syn_keep = 1 */;                    // 180-degree shift
 wire clk27 /* synthesis syn_keep = 1 */;                     // 27Mhz for hdmi clock generation
 wire hclk5 /* synthesis syn_keep = 1 */;                     // 720p pixel clock at 74.25Mhz, and 5x high-speeid
 wire hclk /* synthesis syn_keep = 1 */;
+// Board-specific 60 MHz USB clock. Supply it from a PLL when USB HID is enabled.
+wire uclk /* synthesis syn_keep = 1 */;
 
 wire pause;
 
@@ -168,13 +178,13 @@ end
 // Clocks for Lattice ECP5
 ecp5_pll pll_snes (
     .CLKI(sys_clk),
-    .CLKOP(),
+    .CLKOP(uclk),
     .CLKOS(mclk),
     .CLKOS2(fclk),
     .CLKOS3(clk27)
 );
 
-ecp5_hdmi_pll (
+ecp5_hdmi_pll pll_hdmi (
     .clkin(clk27),
     .clkout0(hclk5),
     .clkout1(hclk)
@@ -296,7 +306,7 @@ wire snes_joy_strb;
 wire snes_joy1_clk, snes_joy2_clk;
 wire [1:0] snes_joy1_di, snes_joy2_di;
 
-// OR together when both SNES and DS2 controllers are connected (right now only nano20k supports both simultaneously)
+// Controller sources share a wired OR so enabled controllers can coexist.
 wor [11:0] joy1_btns, joy2_btns;
 wire [11:0] hid1, hid2;
 
@@ -643,6 +653,78 @@ controller_ds2 joy2_ds2 (
    .clk(mclk), .snes_buttons(joy2_btns),
    .ds_clk(ds_clk2), .ds_miso(ds_miso2), .ds_mosi(ds_mosi2), .ds_cs(ds_cs2)
 );
+`endif
+
+`ifdef CONTROLLER_USB_HID
+// Assert reset immediately, then release it on the USB clock.
+reg [1:0] usb_reset_sync;
+always @(posedge uclk or posedge reset) begin
+    if (reset)
+        usb_reset_sync <= 2'b11;
+    else
+        usb_reset_sync <= {usb_reset_sync[0], 1'b0};
+end
+
+wire [1:0] usb_oe, usb_dp_o, usb_dm_o;
+wire [9:0] usb_rom_addr [0:1];
+wire [3:0] usb_rom_data [0:1];
+wire [11:0] usb_game_buttons [0:1] /* synthesis syn_keep = 1 */;
+
+genvar usb_port;
+generate for (usb_port = 0; usb_port < 2; usb_port = usb_port + 1) begin : usb_hid_ports
+    wire [1:0] typ;
+    wire game_l, game_r, game_u, game_d;
+    wire game_a, game_b, game_x, game_y, game_sel, game_sta;
+    wire [3:0] game_extra;
+
+    assign usb_dp[usb_port] = usb_oe[usb_port] ? usb_dp_o[usb_port] : 1'bz;
+    assign usb_dn[usb_port] = usb_oe[usb_port] ? usb_dm_o[usb_port] : 1'bz;
+
+    assign usb_pull_dp = 2'b00;
+    assign usb_pull_dn = 2'b00;
+
+    usb_hid_host #(
+        .FULL_SPEED(1), .KEYBOARD_SUPPORT(0), .MOUSE_SUPPORT(0), .GAME_SUPPORT(1)
+    ) usb_host (
+        .clk(uclk), .reset(usb_reset_sync[1]), .cs(1'b1),
+        .usb_dp_i(usb_dp[usb_port]), .usb_dm_i(usb_dn[usb_port]),
+        .usb_dp_o(usb_dp_o[usb_port]), .usb_dm_o(usb_dm_o[usb_port]),
+        .usb_oe(usb_oe[usb_port]), .typ(typ),
+        .game_l(game_l), .game_r(game_r), .game_u(game_u), .game_d(game_d),
+        .game_a(game_a), .game_b(game_b), .game_x(game_x), .game_y(game_y),
+        .game_sel(game_sel), .game_sta(game_sta), .game_extra(game_extra),
+        .rom_addr(usb_rom_addr[usb_port]), .rom_dout(usb_rom_data[usb_port])
+    );
+
+    // SNES order: R L X A Right Left Down Up Start Select Y B.
+    // Either shoulder or trigger activates the corresponding SNES shoulder.
+    assign usb_game_buttons[usb_port] = typ == 2'd3 ?
+        {game_extra[1] | game_extra[0], game_extra[3] | game_extra[2],
+         game_x, game_a, game_r, game_l, game_d, game_u,
+         game_sta, game_sel, game_y, game_b} : 12'b0;
+
+end endgenerate
+
+usb_hid_host_dual_rom #(
+`ifdef LATTICE
+    .MEMORY_FILE("../usb_hid_host/rom/usb_hid_host_rom.mem")
+`else
+    .MEMORY_FILE("src/usb_hid_host/rom/usb_hid_host_rom.mem")
+`endif
+) usb_rom (
+    .clk(uclk),
+    .addra(usb_rom_addr[0]), .douta(usb_rom_data[0]), .ena(1'b1),
+    .addrb(usb_rom_addr[1]), .doutb(usb_rom_data[1]), .enb(1'b1)
+);
+
+`ifdef LATTICE
+// Swap controllers for IcePi (better physical access to 2nd USB port
+assign joy1_btns = usb_game_buttons[1];
+assign joy2_btns = usb_game_buttons[0];
+`else
+assign joy1_btns = usb_game_buttons[0];
+assign joy2_btns = usb_game_buttons[1];
+`endif
 `endif
 
 `ifdef CONTROLLER_MISTLE

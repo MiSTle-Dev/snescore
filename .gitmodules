@@ -1,3 +1,6 @@
 [submodule "src/iosys/serv"]
 	path = src/iosys/serv
 	url = https://github.com/olofk/serv
+[submodule "src/usb_hid_host"]
+	path = src/usb_hid_host
+	url = https://github.com/m1nl/usb_hid_host.git
