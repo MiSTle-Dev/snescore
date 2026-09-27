@@ -5,6 +5,8 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.STD_LOGIC_TEXTIO.all;
+library work;
+use work.board_config.all;
 
 entity DSP_LHRomMap is
 	generic (
@@ -117,7 +119,7 @@ begin
 	port map(
 		CLK     => MCLK,
 		RST_N   => RST_N,
-		IN_CLK  => 2148440, --2147727,
+		IN_CLK  => (SNES_FREQ / 10),
 		OUT_CLK => DSP_CLK,
 		CE      => DSP_CE
 	);

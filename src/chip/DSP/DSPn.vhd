@@ -2,6 +2,8 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 library STD;
 use IEEE.NUMERIC_STD.ALL;
+library work;
+use work.board_config.all;
 
 entity DSPn is
 	port(
@@ -48,6 +50,19 @@ architecture rtl of DSPn is
 	constant INSTR_RT: std_logic_vector(1 downto 0) := "01";
 	constant INSTR_JP: std_logic_vector(1 downto 0) := "10";
 	constant INSTR_LD: std_logic_vector(1 downto 0) := "11";
+
+	function rom_file_path(vendor : vendor_t)
+		return string is
+	begin
+		if vendor = VENDOR_LATTICE then
+			return "chip/DSP/";
+		else
+			return "src/chip/DSP/";
+		end if;
+	end function;
+
+	constant PROG_ROM_FILE: string := rom_file_path(VENDOR) & "dsp11b23410_p.hex";
+	constant DATA_ROM_FILE: string := rom_file_path(VENDOR) & "dsp11b23410_d.hex";
 
 	-- IO Registers
 	signal DR	: std_logic_vector(15 downto 0);
@@ -487,7 +502,7 @@ begin
 	                 std_logic_vector(unsigned(PC) + ("1"&x"6BD")) when VER="011" else
 	                 std_logic_vector(unsigned(PC) + ("1"&x"D8B"));
 
-	PROG_ROM : entity work.spram_sz generic map(13, 24, 8096, "src/chip/DSP/dsp11b23410_p.hex")
+	PROG_ROM : entity work.spram_sz generic map(13, 24, 8096, PROG_ROM_FILE)
 	port map(
 		clock		=> CLK,
 		address	=> PROG_ROM_ADDR,
@@ -500,7 +515,8 @@ begin
 	                 std_logic_vector(unsigned(RP( 9 downto 0)) + ("0"&x"C00")) when VER="010" else
 	                 std_logic_vector(unsigned(RP( 9 downto 0)) + ("1"&x"000")) when VER="011" else
 	                 std_logic_vector(unsigned(RP(10 downto 0)) + ("1"&x"400"));
-	DATA_ROM : entity work.spram_sz generic map(13, 16, 7168, "src/chip/DSP/dsp11b23410_d.hex")
+
+	DATA_ROM : entity work.spram_sz generic map(13, 16, 7168, DATA_ROM_FILE)
 	port map(
 		clock		=> CLK,
 		address	=> DATA_ROM_ADDR,

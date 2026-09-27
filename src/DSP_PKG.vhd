@@ -2,9 +2,11 @@ library IEEE;
 use IEEE.Std_Logic_1164.all;
 library STD;
 use ieee.numeric_std.all;
+library work;
+use work.board_config.all;
 
 package DSP_PKG is  
-	constant MCLK_NTSC_FREQ : integer := 21484400; -- 21477270;
+	constant MCLK_NTSC_FREQ : integer := SNES_FREQ;
 	constant MCLK_PAL_FREQ  : integer := 21281370;
 	constant ACLK_TYPE_FREQ : integer :=  4096000;
 	constant ACLK_REAL_FREQ : integer :=  4104960;
