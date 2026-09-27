@@ -5,21 +5,38 @@
 
 //`define STEP_TRACE
 
+`include "config.vh"
+
 `ifndef VERILATOR
 `ifndef MEGA
 `ifndef PRIMER
 `ifndef NANO
-`error "config.v must be read before snestang_top.v"
+`ifndef LATTICE
+`error "Need to define VERILATOR, MEGA, PRIMER, NANO or LATTICE"
+`endif
 `endif
 `endif
 `endif
 `endif
 
-import configPackage::*;
+`ifndef LATTICE
+`define GOWIN
+`endif
 
-module snestang_top (
+module snestang_top #(
+    parameter SNES_FREQ = `SNES_FREQ,
+    parameter PIXEL_FREQ = `PIXEL_FREQ,
+    parameter SDRAM_DATA_WIDTH = `SDRAM_DATA_WIDTH,
+    parameter SDRAM_ROW_WIDTH = `SDRAM_ROW_WIDTH,
+    parameter CORE_ID = 2 // SNEStang
+) (
     input sys_clk,
+
+`ifdef S0_N
+    input s0_n,
+`else
     input s0,
+`endif
 
     // UART
     input UART_RXD,
@@ -27,12 +44,15 @@ module snestang_top (
 
     // HDMI TX
     output       tmds_clk_p,
-    output       tmds_clk_n,
     output [2:0] tmds_d_p,
+
+`ifndef LATTICE
+    output       tmds_clk_n,
     output [2:0] tmds_d_n,
+`endif
 
     // LED
-    output [5:0] led,
+    output [1:0] led,
 
     // MicroSD
     output sd_clk,
@@ -46,7 +66,9 @@ module snestang_top (
     output flash_spi_cs_n,          // chip select
     input flash_spi_miso,           // master in slave out
     output flash_spi_mosi,          // mster out slave in
+`ifndef LATTICE
     output flash_spi_clk,           // spi clock
+`endif
     output flash_spi_wp_n,          // write protect
     output flash_spi_hold_n,        // hold operations
 
@@ -82,6 +104,10 @@ module snestang_top (
     input mcu_spare,
 `endif
 
+`ifdef LATTICE
+    input flash_spi_clk_ts,
+`endif
+
     // SDRAM
     output O_sdram_clk,
     output O_sdram_cke,
@@ -96,15 +122,20 @@ module snestang_top (
 );
 
 // Clock signals
-wire mclk;                      // SNES master clock at 21.5054Mhz (~21.477)
-wire fclk;                      // Fast clock for sdram for SDRAM
-wire fclk_p;                    // 180-degree shifted fclk
-wire clk27;                     // 27Mhz for hdmi clock generation
-wire hclk5, hclk;               // 720p pixel clock at 74.25Mhz, and 5x high-speed
+wire mclk /* synthesis syn_keep = 1 */;                      // SNES master clock at 21.5054Mhz (~21.477)
+wire fclk /* synthesis syn_keep = 1 */;                      // Fast clock for sdram for SDRAM
+wire fclk_p /* synthesis syn_keep = 1 */;                    // 180-degree shifted fclk
+wire clk27 /* synthesis syn_keep = 1 */;                     // 27Mhz for hdmi clock generation
+wire hclk5 /* synthesis syn_keep = 1 */;                     // 720p pixel clock at 74.25Mhz, and 5x high-speeid
+wire hclk /* synthesis syn_keep = 1 */;
 
 wire pause;
 
 reg [15:0] resetcnt = 16'hffff;
+
+`ifdef S0_N
+wire s0 = ~s0_n;
+`endif
 
 always @(posedge mclk, posedge s0) begin
     if (s0) begin
@@ -117,8 +148,47 @@ end
 wire resetn = (resetcnt == 0);  // reset is cleared after 4 cycles
 wire reset = ~resetn;
 
-`ifdef NANO
+`ifdef VERILATOR
+// Simulated clocks for verilator
+reg [2:0] clk_cnt = 3'b0;       // 0 1 2 3 4 5
+reg mclk_buf;                   // 0 0 0 1 1 1
+assign fclk = clk_cnt[0];       // 0 1 0 1 0 1
+assign mclk = mclk_buf;
+always @(posedge sys_clk) begin
+    clk_cnt <= clk_cnt + 3'b1;
+    if (clk_cnt == 3'd5) begin
+        clk_cnt <= 0;
+        mclk_buf <= 0;
+    end
+    if (clk_cnt == 3'd2)
+        mclk_buf <= 1;
+end
 
+`elsif LATTICE
+// Clocks for Lattice ECP5
+ecp5_pll pll_snes (
+    .CLKI(sys_clk),
+    .CLKOP(),
+    .CLKOS(mclk),
+    .CLKOS2(fclk),
+    .CLKOS3(clk27)
+);
+
+ecp5_hdmi_pll (
+    .clkin(clk27),
+    .clkout0(hclk5),
+    .clkout1(hclk)
+);
+
+ODDRX1F ddr_fclk_p (
+    .D0(1'b0),
+    .D1(1'b1),
+    .Q(fclk_p),
+    .SCLK(fclk),
+    .RST(1'b0)
+);
+
+`elsif NANO
 // Clocks for Nano 20K
 assign clk27 = sys_clk;
 gowin_pll_hdmi pll_hdmi (
@@ -140,33 +210,8 @@ gowin_pll_snes pll_snes (
     .clkoutd(mclk)              // 21.6
 );
 
-`elsif VERILATOR
-// Simulated clocks for verilator
-reg [2:0] clk_cnt = 3'b0;       // 0 1 2 3 4 5
-reg mclk_buf;                   // 0 0 0 1 1 1
-assign fclk = clk_cnt[0];       // 0 1 0 1 0 1
-assign mclk = mclk_buf;
-always @(posedge sys_clk) begin
-    clk_cnt <= clk_cnt + 3'b1;
-    if (clk_cnt == 3'd5) begin
-        clk_cnt <= 0;
-        mclk_buf <= 0;
-    end
-    if (clk_cnt == 3'd2)
-        mclk_buf <= 1;
-end
-
 `else
-// Mega 138K: mclk=21.5054, fclk=64.5161
-// Primer 25K: mclk=21.4844, fclk=85.9375
-`ifdef MEGA
-localparam SNES_FREQ = 21_505_400;
-localparam PIXEL_FREQ = 74_250_000;
-`else
-localparam SNES_FREQ = 21_484_400;
-localparam PIXEL_FREQ = 74_250_000;
-`endif
-
+// Clocsk for other Gowin boards
 gowin_pll_snes pll_snes (
     .clkout0(mclk),             // 21.4844
     .clkout1(fclk),
@@ -231,15 +276,20 @@ wire  [7:0] ARAM_D;
 wire        aram_16 = 0;
 
 wire BLEND = 1'b0;
-reg        PAL;
-wire       dotclk  /*verilator public*/;
+wire PAL = 1'b0; // we do support NTSC only
+
 wire [7:0] R_OUT  /*verilator public*/;
 wire [7:0] G_OUT  /*verilator public*/;
 wire [7:0] B_OUT  /*verilator public*/;
-wire [8:0] x_out /*verilator public*/, y_out /*verilator public*/;
-wire       hblankn,vblankn;
 
-wire [15:0] audio_l /*verilator public*/, audio_r /*verilator public*/;
+wire [8:0] x_out /*verilator public*/;
+wire [8:0] y_out /*verilator public*/;
+
+wire       dotclk  /*verilator public*/;
+wire       hblankn, vblankn;
+
+wire [15:0] audio_l /*verilator public*/;
+wire [15:0] audio_r /*verilator public*/;
 wire audio_ready /*verilator public*/;
 
 wire snes_joy_strb;
@@ -250,8 +300,6 @@ wire [1:0] snes_joy1_di, snes_joy2_di;
 wor [11:0] joy1_btns, joy2_btns;
 wire [11:0] hid1, hid2;
 
-wire [5:0] ph;
-reg snes_start = 1'b0;
 wire pause_snes_for_frame_sync;
 
 wire [7:0] loader_do;
@@ -287,19 +335,20 @@ wire sysclkf_ce, sysclkr_ce;
 wire overlay;
 
 `ifdef CHIP_DSPn
-parameter USE_DSPn=1;
+parameter USE_DSPn = 1;
 `else
-parameter USE_DSPn=0;
+parameter USE_DSPn = 0;
 `endif
+
 `ifdef CHIP_GSU
-parameter USE_GSU=1;
+parameter USE_GSU = 1;
 `else
-parameter USE_GSU=0;
+parameter USE_GSU = 0;
 `endif
 
 // `ifdef VERILATOR
-// parameter USE_DSPn=1;
-// parameter USE_GSU=1;
+// parameter USE_DSPn = 1;
+// parameter USE_GSU = 1;
 // `endif
 
 `ifndef DISABLE_SNES
@@ -555,6 +604,7 @@ always @(posedge mclk, negedge resetn) begin
         loader_addr <= 0;
         loading_r <= 0;
         loaded <= 0;
+
     end else begin
         loading_r <= loading;
         if (loader_do_valid && loader_do_ready && header_finished) begin
@@ -601,6 +651,15 @@ wire mcu_start;
 
 wire [7:0] mcu_data_out;
 wire [7:0] hid_data_out;
+
+`ifdef LATTICE
+// filter companion SPI clock
+wire [15:0] mcu_clk_i_d = { mcu_clk_i_d[14:0], mcu_clk } /* synthesis syn_keep=1 */ /* synthesis syn_dont_touch=1 */;
+wire        mcu_clk_i   = ( mcu_clk_i && mcu_clk_i_d != 16'h0000) ||
+                          (!mcu_clk_i && mcu_clk_i_d == 16'hffff) /* synthesis syn_keep=1 */ /* synthesis syn_dont_touch=1 */;
+`else
+wire mcu_clk_i = mcu_clk;
+`endif
 
 mcu_spi mcu (
   .clk(mclk),
@@ -674,6 +733,11 @@ wire [7:0] dbg_dat_out_loader;
 
 wire [14:0] rgb5 = {B_OUT[7:3], G_OUT[7:3], R_OUT[7:3]};
 
+`ifdef LATTICE
+wire       tmds_clk_n;
+wire [2:0] tmds_d_n;
+`endif
+
 snes2hdmi #(.SNES_FREQ(SNES_FREQ), .PIXEL_FREQ(PIXEL_FREQ)) s2h (
     .clk(mclk), .resetn(resetn), .snes_refresh(refresh),
     .pause_snes_for_frame_sync(pause_snes_for_frame_sync),
@@ -689,7 +753,7 @@ snes2hdmi #(.SNES_FREQ(SNES_FREQ), .PIXEL_FREQ(PIXEL_FREQ)) s2h (
 
 `ifdef MCU_BL616
 
-iosys_bl616 #(.CORE_ID(2), .FREQ(SNES_FREQ)) iosys (
+iosys_bl616 #(.CORE_ID(CORE_ID), .FREQ(SNES_FREQ)) iosys (
     .clk(mclk), .hclk(hclk), .resetn(resetn),
     .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y),
     .overlay_color(overlay_color),
@@ -706,11 +770,12 @@ iosys_serv
 `else
 iosys_picorv32
 `endif
-    #(.CORE_ID(2)) iosys (        // CORE ID 2: SNESTang
+    #(.CORE_ID(CORE_ID), .FREQ(SNES_FREQ)) iosys (
     .clk(mclk), .hclk(hclk), .resetn(resetn),
 
     .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y),
     .overlay_color(overlay_color),
+
     .joy1(joy1_btns), .joy2(joy2_btns),
 
     .rom_loading(loading), .rom_do(loader_do), .rom_do_valid(loader_do_valid), .rom_do_ready(loader_do_ready),
@@ -728,6 +793,13 @@ iosys_picorv32
     .sd_clk(sd_clk), .sd_cmd(sd_cmd), .sd_dat0(sd_dat0), .sd_dat1(sd_dat1),
     .sd_dat2(sd_dat2), .sd_dat3(sd_dat3)
 );
+
+`ifdef LATTICE
+USRMCLK usrmclk (
+    .USRMCLKI(flash_spi_clk),
+    .USRMCLKTS(flash_spi_clk_ts)   // 0 = drive clock, this cannot be a constant!
+) /* synthesis syn_noprune=1 */ ;
+`endif
 
 always @(posedge mclk) begin            // RV
     if (~resetn) begin
@@ -817,6 +889,7 @@ test_loader test_loader (
 
 // test audio sink: FIFO-like rate limiting to sound sample generation
 reg [3:0] sample_counter = 0;
+
 always @(posedge mclk) begin
     if (audio_ready)
         sample_counter <= 0;
@@ -824,10 +897,10 @@ always @(posedge mclk) begin
         sample_counter <= sample_counter == 15 ? 15 : sample_counter + 1;
 end
 
-
 // test video sync by turning on pause_snes_for_frame_sync periodically
 reg test_halt_snes, test_sync_done;
 reg [3:0] test_halt_cnt = 0;
+
 assign pause_snes_for_frame_sync = test_halt_snes;
 
 always @(posedge mclk) begin    // halt SNES during snes dram refresh on line 2
@@ -868,12 +941,13 @@ reg [9:0] status;
 //assign led = {UART_TXD, s0};
 //assign led = joy1_btns[1:0];        // Y and B
 
-assign led[0] = ~loaded;
-assign led[1] = ~loading;
-assign led[2] = ~sdram_refreshing;
-assign led[3] = ~(rv_req ^ rv_req_ack);
-assign led[4] = ~(cpu_req ^ cpu_req_ack);
-assign led[5] = ~(bsram_req ^ bsram_req_ack);
+`ifdef LED_N
+assign led[0] = ~resetn;
+assign led[1] = ~loaded;
+`else
+assign led[0] = resetn;
+assign led[1] = loaded;
+`endif
 
 always @(posedge mclk) begin
     if (loading && ~loading_r)
