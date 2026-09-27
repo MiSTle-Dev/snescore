@@ -22,7 +22,11 @@ module packet_picker
     input logic [AUDIO_BIT_WIDTH-1:0] audio_sample_word [1:0],
     output logic [23:0] header,
     output logic [55:0] sub [3:0]
+`ifdef LATTICE
+) /* synthesis syn_sharing=off */;
+`else
 );
+`endif
 
 // Connect the current packet type's data to the output.
 logic [7:0] packet_type = 8'd0;
@@ -119,7 +123,7 @@ always_ff @(posedge clk_pixel)
 begin
     if (reset)
     begin
-        frame_counter <= 8'd0;
+        frame_counter = 8'd0;
     end
     else if (packet_pixel_counter == 5'd31 && packet_type == 8'h02) // Keep track of current IEC 60958 frame
     begin
