@@ -17,13 +17,15 @@ if {$argc >= 2} {
 if {$argc >= 3} {
     set mcu [lindex $argv 2]
 } else {
-    set mcu "bl616"
+    set mcu "serv"
 }
 
 # process $dev and $controller
 if {$dev eq "nano20k"} {
     set_device GW2AR-LV18QN88C8/I7 -device_version C
-    add_file src/nano20k/config.v
+    add_file "src/nano20k/config.vh"
+    add_file "src/nano20k/config.vhd"
+    add_file -type verilog "src/snestang_top.v"
     add_file -type verilog "src/snes2hdmi_nano.v"
     add_file -type cst "src/nano20k/snestang.cst"
     add_file -type verilog "src/nano20k/gowin_pll_hdmi.v"
@@ -49,9 +51,10 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/primer25k/sdram_cl2_3ch.v"
     set_option -output_base_name snestang_${dev}_${controller}
 } elseif {$dev eq "mistle_gw5a_25"} {
-    set mcu "serv"
     set_device GW5A-LV25LQ144C1/I0 -device_version A
-    add_file src/mistle_gw5a_25/config.v
+    add_file "src/mistle_gw5a_25/config.vh"
+    add_file "src/mistle_gw5a_25/config.vhd"
+    add_file -type verilog "src/snestang_top.v"
     add_file -type cst "src/mistle_gw5a_25/snestang.cst"
     add_file -type verilog "src/snes2hdmi.v"
     add_file -type verilog "src/mistle_gw5a_25/gowin_pll_27.v"
@@ -122,6 +125,7 @@ if {$mcu eq "bl616"} {
     add_file -type verilog "src/iosys/iosys_bl616.v"
     add_file -type verilog "src/iosys/uart_fractional.v"
     add_file -type verilog "src/iosys/textdisp.v"
+    add_file -type verilog "src/iosys/textdisp_ram.v"
     add_file -type verilog "src/iosys/uart_fixed.v"
 } elseif {$mcu eq "picorv32"} {
     add_file -type verilog "src/iosys/iosys_picorv32.v"
@@ -131,6 +135,7 @@ if {$mcu eq "bl616"} {
     add_file -type verilog "src/iosys/spi_master.v"
     add_file -type verilog "src/iosys/spiflash.v"
     add_file -type verilog "src/iosys/textdisp.v"
+    add_file -type verilog "src/iosys/textdisp_ram.v"
 } elseif {$mcu eq "serv"} {
     add_file -type verilog "src/iosys/iosys_serv.v"
     add_file -type verilog "src/iosys/simplespimaster.v"
@@ -138,6 +143,7 @@ if {$mcu eq "bl616"} {
     add_file -type verilog "src/iosys/spi_master.v"
     add_file -type verilog "src/iosys/spiflash.v"
     add_file -type verilog "src/iosys/textdisp.v"
+    add_file -type verilog "src/iosys/textdisp_ram.v"
     add_file -type verilog "src/iosys/serv/servile/servile.v"
     add_file -type verilog "src/iosys/serv/servile/servile_mux.v"
     add_file -type verilog "src/iosys/serv/servile/servile_arbiter.v"
@@ -188,7 +194,6 @@ add_file -type verilog "src/hdmi2/packet_picker.sv"
 add_file -type verilog "src/hdmi2/serializer.sv"
 add_file -type verilog "src/hdmi2/source_product_description_info_frame.sv"
 add_file -type verilog "src/hdmi2/tmds_channel.sv"
-add_file -type verilog "src/iosys/gowin_dpb_menu.v"
 add_file -type verilog "src/main.v"
 add_file -type verilog "src/ppucgram.v"
 add_file -type verilog "src/ppuoam.v"
@@ -201,7 +206,6 @@ add_file -type vhdl "src/SNES.vhd"
 add_file -type verilog "src/controller_adapter.sv"
 add_file -type verilog "src/controller_ds2.sv"
 add_file -type verilog "src/controller_snes.v"
-add_file -type verilog "src/snestang_top.v"
 add_file -type vhdl "src/SMP.vhd"
 add_file -type vhdl "src/SPC700/ALU.vhd"
 add_file -type vhdl "src/SPC700/AddSub.vhd"
