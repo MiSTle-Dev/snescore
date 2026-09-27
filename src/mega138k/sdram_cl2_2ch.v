@@ -113,7 +113,7 @@ module sdram_snes
 
     output reg [23:0] total_refresh,
 
-    output reg        busy
+    output reg        ready
 );
 
 // Tri-state DQ input/output
@@ -246,7 +246,7 @@ assign bsram_dout = (cycle[4] && oe_latch[0] && port[0] == PORT_BSRAM) ? (ds[0][
 //
 always @(posedge clk) begin
     if (~resetn) begin
-        busy <= 1'b1;
+        ready <= 1'b0;
         dq_oen <= 1;
         SDRAM_DQM <= 2'b0;
         normal <= 0;
@@ -289,7 +289,7 @@ always @(posedge clk) begin
                 setup <= 0;
                 normal <= 1;
                 cycle <= 1;
-                busy <= 1'b0;               // init&config is done
+                ready <= 1'b1;              // init&config is done
             end
         end 
         if (normal) begin

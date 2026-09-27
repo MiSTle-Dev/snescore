@@ -6,6 +6,9 @@
         <Source name="../snestang_top.v" type="Verilog" type_short="Verilog">
             <Options top_module="snestang_top"/>
         </Source>
+        <Source name="../rst_sync.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
         <Source name="../usb_hid_host/rtl/usb_hid_host.v" type="Verilog" type_short="Verilog">
             <Options/>
         </Source>

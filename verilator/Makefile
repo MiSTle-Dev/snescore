@@ -4,6 +4,7 @@ D=../src
 GHDL ?= ghdl
 GHDL_FLAGS = --std=08 --latches --out=verilog -fsynopsys
 GHDL_DIR = obj_dir/ghdl
+GHDL_CONFIG = $D/verilator/config.vhd
 PROJECT_ROOT := $(abspath ..)
 VERILATOR_FLAGS = -Wno-fatal
 
@@ -26,13 +27,13 @@ GHDL_SRCS = $(GHDL_DIR)/DSP.v $(GHDL_DIR)/SMP.v $(GHDL_DIR)/SPPU.v \
 	$(GHDL_DIR)/CEGen.v $(GHDL_DIR)/CPU.v $(GHDL_DIR)/SWRAM.v $(GHDL_DIR)/SNES.v \
 	$(GHDL_DIR)/DSPn.v $(GHDL_DIR)/DSP_LHRomMap.v
 SRCS = $D/verilator/config.v $D/verilator/test_loader.v $D/verilator/sdram_sim.v \
-	$D/verilator/dpram.v $D/verilator/spram.v $D/snestang_top.v $D/main.v \
+	$D/verilator/dpram.v $D/verilator/spram.v $D/snestang_top.v $D/rst_sync.v $D/main.v \
 	$D/ppuhoam.v $D/ppuoam.v $D/ppusprbuf.v $D/ppucgram.v \
 	$D/chip/DSP/OBC1.v $D/chip/DSP/SRTC.v \
 	$D/smc_parser.v $D/mega138k/vram.v $(GHDL_SRCS)
 #	 $D/chip/GSU/GSU_PKG.v $D/chip/GSU/GSUMap.v $D/chip/GSU/GSU.v
 
-INCLUDES=-I$D -I$D/spc700 -I$D/65C816
+INCLUDES=-I$D/verilator -I$D -I$D/spc700 -I$D/65C816
 
 CFLAGS_SDL=$(shell sdl2-config --cflags) -O2
 LIBS_SDL=$(shell sdl2-config --libs)
@@ -46,40 +47,40 @@ verilate: ./obj_dir/V$N.cpp
 $(GHDL_DIR):
 	mkdir -p $@
 
-$(GHDL_DIR)/DSP.v: $(DSP_VHDL) | $(GHDL_DIR)
-	$(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(DSP_VHDL) -e DSP > $@.tmp
+$(GHDL_DIR)/DSP.v: $(GHDL_CONFIG) $(DSP_VHDL) | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(GHDL_CONFIG) $(DSP_VHDL) -e DSP > $@.tmp
 	mv $@.tmp $@
 
-$(GHDL_DIR)/SMP.v: $(SMP_VHDL) | $(GHDL_DIR)
-	$(GHDL) synth $(GHDL_FLAGS) $(SMP_VHDL) -e SMP > $@.tmp
+$(GHDL_DIR)/SMP.v: $(GHDL_CONFIG) $(SMP_VHDL) | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) $(GHDL_CONFIG) $(SMP_VHDL) -e SMP > $@.tmp
 	mv $@.tmp $@
 
-$(GHDL_DIR)/SPPU.v: $(PPU_VHDL) | $(GHDL_DIR)
-	$(GHDL) synth $(GHDL_FLAGS) $(PPU_VHDL) -e SPPU > $@.tmp
+$(GHDL_DIR)/SPPU.v: $(GHDL_CONFIG) $(PPU_VHDL) | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) $(GHDL_CONFIG) $(PPU_VHDL) -e SPPU > $@.tmp
 	mv $@.tmp $@
 
-$(GHDL_DIR)/CEGen.v: $D/CEGen.vhd | $(GHDL_DIR)
-	$(GHDL) synth $(GHDL_FLAGS) $< -e CEGen > $@.tmp
+$(GHDL_DIR)/CEGen.v: $(GHDL_CONFIG) $D/CEGen.vhd | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) $(GHDL_CONFIG) $D/CEGen.vhd -e CEGen > $@.tmp
 	mv $@.tmp $@
 
-$(GHDL_DIR)/CPU.v: $(CPU_VHDL) | $(GHDL_DIR)
-	$(GHDL) synth $(GHDL_FLAGS) $(CPU_VHDL) -e SCPU > $@.tmp
+$(GHDL_DIR)/CPU.v: $(GHDL_CONFIG) $(CPU_VHDL) | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) $(GHDL_CONFIG) $(CPU_VHDL) -e SCPU > $@.tmp
 	mv $@.tmp $@
 
-$(GHDL_DIR)/SWRAM.v: $(SWRAM_VHDL) | $(GHDL_DIR)
-	$(GHDL) synth $(GHDL_FLAGS) $(SWRAM_VHDL) -e SWRAM > $@.tmp
+$(GHDL_DIR)/SWRAM.v: $(GHDL_CONFIG) $(SWRAM_VHDL) | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) $(GHDL_CONFIG) $(SWRAM_VHDL) -e SWRAM > $@.tmp
 	mv $@.tmp $@
 
-$(GHDL_DIR)/SNES.v: $(SNES_VHDL) | $(GHDL_DIR)
-	$(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(SNES_VHDL) -e SNES > $@.tmp
+$(GHDL_DIR)/SNES.v: $(GHDL_CONFIG) $(SNES_VHDL) | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(GHDL_CONFIG) $(SNES_VHDL) -e SNES > $@.tmp
 	mv $@.tmp $@
 
-$(GHDL_DIR)/DSPn.v: $(DSPN_VHDL) | $(GHDL_DIR)
-	cd $(PROJECT_ROOT) && $(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(abspath $(DSPN_VHDL)) -e DSPn > $(abspath $@.tmp)
+$(GHDL_DIR)/DSPn.v: $(GHDL_CONFIG) $(DSPN_VHDL) | $(GHDL_DIR)
+	cd $(PROJECT_ROOT) && $(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(abspath $(GHDL_CONFIG)) $(abspath $(DSPN_VHDL)) -e DSPn > $(abspath $@.tmp)
 	mv $@.tmp $@
 
-$(GHDL_DIR)/DSP_LHRomMap.v: $(DSP_MAP_VHDL) | $(GHDL_DIR)
-	cd $(PROJECT_ROOT) && $(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(abspath $(DSP_MAP_VHDL)) -e DSP_LHRomMap > $(abspath $@.tmp)
+$(GHDL_DIR)/DSP_LHRomMap.v: $(GHDL_CONFIG) $(DSP_MAP_VHDL) | $(GHDL_DIR)
+	cd $(PROJECT_ROOT) && $(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(abspath $(GHDL_CONFIG)) $(abspath $(DSP_MAP_VHDL)) -e DSP_LHRomMap > $(abspath $@.tmp)
 	mv $@.tmp $@
 
 ./obj_dir/V$N.cpp: Makefile sim_main.cpp $(SRCS)

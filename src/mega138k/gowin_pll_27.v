@@ -7,12 +7,12 @@
 //Device Version: B
 //Created Time: Sun Nov 19 16:35:16 2023
 
-module gowin_pll_27 (clkout0, clkin);
+module gowin_pll_27 (clkout0, lock, clkin);
 
 output clkout0;
 input clkin;
 
-wire lock_o;
+output lock;
 wire clkout1_o;
 wire clkout2_o;
 wire clkout3_o;
@@ -27,7 +27,7 @@ assign gw_vcc = 1'b1;
 assign gw_gnd = 1'b0;
 
 PLL PLL_inst (
-    .LOCK(lock_o),
+    .LOCK(lock),
     .CLKOUT0(clkout0),
     .CLKOUT1(clkout1_o),
     .CLKOUT2(clkout2_o),

@@ -19,8 +19,10 @@
 `endif
 `endif
 
+`ifndef VERILATOR
 `ifndef LATTICE
 `define GOWIN
+`endif
 `endif
 
 module snestang_top #(
@@ -141,25 +143,20 @@ wire uclk /* synthesis syn_keep = 1 */;
 
 wire pause;
 
-reg [15:0] resetcnt = 16'hffff;
-
 `ifdef S0_N
 wire s0 = ~s0_n;
 `endif
 
-always @(posedge mclk, posedge s0) begin
-    if (s0) begin
-        resetcnt <= 16'hffff;
-    end else begin
-        resetcnt <= resetcnt == 0 ? 0 : resetcnt - 1;
-    end
-end
-
-wire resetn = (resetcnt == 0);  // reset is cleared after 4 cycles
+wire pll_snes_lock, pll_hdmi_lock;
+wire sdram_ready;
+wire resetn, hclk_resetn, uclk_resetn, sdram_resetn;
+wire iosys_resetn = resetn & ~s0;
 wire reset = ~resetn;
 
 `ifdef VERILATOR
 // Simulated clocks for verilator
+assign pll_snes_lock = 1'b1;
+assign pll_hdmi_lock = 1'b1;
 reg [2:0] clk_cnt = 3'b0;       // 0 1 2 3 4 5
 reg mclk_buf;                   // 0 0 0 1 1 1
 assign fclk = clk_cnt[0];       // 0 1 0 1 0 1
@@ -181,13 +178,15 @@ ecp5_pll pll_snes (
     .CLKOP(uclk),
     .CLKOS(mclk),
     .CLKOS2(fclk),
-    .CLKOS3(clk27)
+    .CLKOS3(clk27),
+    .LOCK(pll_snes_lock)
 );
 
 ecp5_hdmi_pll pll_hdmi (
     .clkin(clk27),
     .clkout0(hclk5),
-    .clkout1(hclk)
+    .clkout1(hclk),
+    .locked(pll_hdmi_lock)
 );
 
 ODDRX1F ddr_fclk_p (
@@ -203,13 +202,14 @@ ODDRX1F ddr_fclk_p (
 assign clk27 = sys_clk;
 gowin_pll_hdmi pll_hdmi (
     .clkin(sys_clk),            // 27 Mhz input
-    .clkout(hclk5)              // 371.25Mhz
+    .clkout(hclk5),             // 371.25Mhz
+    .lock(pll_hdmi_lock)
 );
 
 CLKDIV #(.DIV_MODE(5)) div5 (
     .CLKOUT(hclk),              // 74.25Mhz
     .HCLKIN(hclk5),
-    .RESETN(resetn),
+    .RESETN(pll_hdmi_lock),
     .CALIB(1'b0)
 );
 
@@ -217,29 +217,44 @@ gowin_pll_snes pll_snes (
     .clkin(sys_clk),
     .clkout(fclk),              // 86.4
     .clkoutp(fclk_p),           // 225-degrees shifted
-    .clkoutd(mclk)              // 21.6
+    .clkoutd(mclk),             // 21.6
+    .lock(pll_snes_lock)
 );
 
 `else
-// Clocsk for other Gowin boards
+// Clocks for other Gowin boards
+wire pll_27_lock, pll_hdmi_core_lock;
+assign pll_hdmi_lock = pll_27_lock & pll_hdmi_core_lock;
 gowin_pll_snes pll_snes (
     .clkout0(mclk),             // 21.4844
     .clkout1(fclk),
     .clkout2(fclk_p),
+    .lock(pll_snes_lock),
     .clkin(sys_clk)             // 50 Mhz input
 );
 
 // HDMI clocks
 gowin_pll_27 pll_27 (
     .clkin(sys_clk),
-    .clkout0(clk27)
+    .clkout0(clk27),
+    .lock(pll_27_lock)
 );
 gowin_pll_hdmi pll_hdmi (
     .clkin(clk27),              // 27 Mhz input
     .clkout0(hclk5),
-    .clkout1(hclk)
+    .clkout1(hclk),
+    .lock(pll_hdmi_core_lock)
 );
 `endif
+
+rst_sync resets (
+    .clk_mclk(mclk), .clk_fclk(fclk), .clk_hclk(hclk), .clk_uclk(uclk),
+    .pll_snes_lock(pll_snes_lock), .pll_hdmi_lock(pll_hdmi_lock),
+    .sdram_ready(sdram_ready),
+    .rst_mclk_n(resetn),
+    .rst_hclk_n(hclk_resetn), .rst_uclk_n(uclk_resetn),
+    .rst_sdram_n(sdram_resetn)
+);
 
 wire DOT_CLK_CE;
 
@@ -372,28 +387,27 @@ wire [7:0] loader_do;
 wire loader_do_valid, loader_do_ready;
 wire loading, header_finished;
 
-reg [22:0] loader_addr = 0;
+reg loaded;
 
-reg [7:0] dbg_reg, dbg_sel;
-wire [7:0] dbg_dat_out, dbg_dat_in;
-reg dbg_reg_wr = 0;
-reg dbg_break = 0;
+reg [22:0] loader_addr = 0;
 
 wire [7:0] rom_type;
 wire [3:0] rom_size, ram_size;
 wire [23:0] rom_mask, ram_mask;
 
-wire sdram_busy;
 wire sdram_refreshing;
 
 wire refresh;
 wire snes_enable;
 
-reg snes_resetn;
-reg loaded;
+reg snes_resetn = 1'b0;
 
-always @(posedge mclk)
-    snes_resetn <= resetn && ~loading && ~sdram_busy;
+always @(posedge mclk, negedge iosys_resetn) begin
+    if (~iosys_resetn)
+        snes_resetn <= 1'b0;
+    else
+        snes_resetn <= iosys_resetn & ~loading;
+end
 
 assign snes_enable = loaded && ~pause_snes_for_frame_sync;
 
@@ -602,7 +616,7 @@ always @(posedge mclk) begin
 end
 
 sdram_snes sdram(
-    .clk(fclk), .mclk(mclk), .clkref(DOT_CLK_CE), .resetn(resetn), .busy(sdram_busy), .refreshing(sdram_refreshing),
+    .clk(fclk), .mclk(mclk), .clkref(DOT_CLK_CE), .resetn(sdram_resetn), .ready(sdram_ready), .refreshing(sdram_refreshing),
 
     // SDRAM pins
     .SDRAM_DQ(IO_sdram_dq), .SDRAM_A(O_sdram_addr), .SDRAM_BA(O_sdram_ba),
@@ -712,15 +726,6 @@ controller_ds2 joy2_ds2 (
 `endif
 
 `ifdef CONTROLLER_USB_HID
-// Assert reset immediately, then release it on the USB clock.
-reg [1:0] usb_reset_sync;
-always @(posedge uclk or posedge reset) begin
-    if (reset)
-        usb_reset_sync <= 2'b11;
-    else
-        usb_reset_sync <= {usb_reset_sync[0], 1'b0};
-end
-
 wire [1:0] usb_oe, usb_dp_o, usb_dm_o;
 wire [9:0] usb_rom_addr [0:1];
 wire [3:0] usb_rom_data [0:1];
@@ -742,7 +747,7 @@ generate for (usb_port = 0; usb_port < 2; usb_port = usb_port + 1) begin : usb_h
     usb_hid_host #(
         .FULL_SPEED(1), .KEYBOARD_SUPPORT(0), .MOUSE_SUPPORT(0), .GAME_SUPPORT(1)
     ) usb_host (
-        .clk(uclk), .reset(usb_reset_sync[1]), .cs(1'b1),
+        .clk(uclk), .reset(~uclk_resetn), .cs(1'b1),
         .usb_dp_i(usb_dp[usb_port]), .usb_dm_i(usb_dn[usb_port]),
         .usb_dp_o(usb_dp_o[usb_port]), .usb_dm_o(usb_dm_o[usb_port]),
         .usb_oe(usb_oe[usb_port]), .typ(typ),
@@ -867,8 +872,6 @@ wire [14:0] overlay_color;
 wire [7:0] overlay_x;
 wire [7:0] overlay_y;
 
-wire [7:0] dbg_dat_out_loader;
-
 wire [14:0] rgb5 = {B_OUT[7:3], G_OUT[7:3], R_OUT[7:3]};
 
 `ifdef LATTICE
@@ -877,14 +880,14 @@ wire [2:0] tmds_d_n;
 `endif
 
 snes2hdmi #(.SNES_FREQ(SNES_FREQ), .PIXEL_FREQ(PIXEL_FREQ)) s2h (
-    .clk(mclk), .resetn(resetn), .snes_refresh(refresh),
+    .clk(mclk), .resetn(resetn), .pixel_resetn(hclk_resetn), .snes_refresh(refresh),
     .pause_snes_for_frame_sync(pause_snes_for_frame_sync),
     .dotclk(dotclk), .hblank(~hblankn),.vblank(~vblankn),.rgb5(rgb5),
     .xs(x_out), .ys(y_out),
     .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y),
     .overlay_color(overlay_color),
     .audio_l(audio_l), .audio_r(audio_r), .audio_ready(audio_ready),
-    .clk_pixel(hclk),.clk_5x_pixel(hclk5),.locked(1'b1),
+    .clk_pixel(hclk),.clk_5x_pixel(hclk5),
     .tmds_clk_n(tmds_clk_n), .tmds_clk_p(tmds_clk_p),
     .tmds_d_n(tmds_d_n), .tmds_d_p(tmds_d_p)
 );
@@ -892,7 +895,7 @@ snes2hdmi #(.SNES_FREQ(SNES_FREQ), .PIXEL_FREQ(PIXEL_FREQ)) s2h (
 `ifdef MCU_BL616
 
 iosys_bl616 #(.CORE_ID(CORE_ID), .FREQ(SNES_FREQ)) iosys (
-    .clk(mclk), .hclk(hclk), .resetn(resetn),
+    .clk(mclk), .hclk(hclk), .resetn(iosys_resetn),
     .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y),
     .overlay_color(overlay_color),
     .joy1(joy1_mapped), .joy2(joy2_mapped), .hid1(hid1), .hid2(hid2),
@@ -909,7 +912,7 @@ iosys_serv
 iosys_picorv32
 `endif
     #(.CORE_ID(CORE_ID), .FREQ(SNES_FREQ)) iosys (
-    .clk(mclk), .hclk(hclk), .resetn(resetn),
+    .clk(mclk), .hclk(hclk), .resetn(iosys_resetn),
 
     .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y),
     .overlay_color(overlay_color),
@@ -917,7 +920,6 @@ iosys_picorv32
     .joy1(joy1_mapped), .joy2(joy2_mapped),
 
     .rom_loading(loading), .rom_do(loader_do), .rom_do_valid(loader_do_valid), .rom_do_ready(loader_do_ready),
-    .ram_busy(sdram_busy),
 
     .rv_valid(rv_valid), .rv_ready(rv_ready), .rv_addr(rv_addr),
     .rv_wdata(rv_wdata), .rv_wstrb(rv_wstrb), .rv_rdata(rv_rdata),

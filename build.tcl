@@ -169,6 +169,7 @@ if {$mcu eq "bl616"} {
     error "Unknown MCU $mcu"
 }
 
+add_file -type verilog "src/rst_sync.v"
 add_file -type vhdl "src/dpram.vhd"
 add_file -type vhdl "src/spram.vhd"
 add_file -type vhdl "src/65C816/ALU.vhd"

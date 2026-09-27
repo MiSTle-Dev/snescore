@@ -7,14 +7,14 @@
 //Device Version: B
 //Created Time: Sat Feb 17 17:52:41 2024
 
-module gowin_pll_snes (clkout0, clkout1, clkout2, clkin);
+module gowin_pll_snes (clkout0, clkout1, clkout2, lock, clkin);
 
 output clkout0;
 output clkout1;
 output clkout2;
 input clkin;
 
-wire lock;
+output lock;
 wire clkout3;
 wire clkout4;
 wire clkout5;

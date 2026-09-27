@@ -7,13 +7,13 @@
 //Device Version: B
 //Created Time: Sat Feb 17 18:11:19 2024
 
-module gowin_pll_hdmi (clkout0, clkout1, clkin);
+module gowin_pll_hdmi (clkout0, clkout1, lock, clkin);
 
 output clkout0;
 output clkout1;
 input clkin;
 
-wire lock;
+output lock;
 wire clkout2;
 wire clkout3;
 wire clkout4;

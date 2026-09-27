@@ -50,8 +50,6 @@ module iosys_serv #(
     output  [3:0] rv_wstrb,         // 4 byte write strobe
     input  [31:0] rv_rdata,         // 32-bit read data
 
-    input ram_busy,                 // iosys starts after SDRAM initialization
-
     // SPI flash
     output flash_spi_cs_n,          // chip select
     input  flash_spi_miso,          // master in slave out
@@ -103,13 +101,17 @@ always @(posedge clk, negedge resetn) begin
     if (~resetn) begin
         flash_loaded <= 0;
         flash_loading <= 0;
+        flash_start <= 0;
+        flash_wr <= 0;
+        flash_d <= 0;
+        flash_wstrb <= 0;
         flash_addr <= {21{1'b1}};
 
     end else begin
         flash_start <= 0;
         flash_wr <= 0;
 
-        if (~flash_loaded && ~flash_loading && ~ram_busy) begin
+        if (~flash_loaded && ~flash_loading) begin
             // start loading
             flash_start <= 1;
             flash_loading <= 1;
@@ -145,8 +147,8 @@ wire [31:0] mem_addr, mem_wdata;
 wire  [3:0] mem_wstrb;
 wire [31:0] mem_rdata;
 
-reg ram_ready;
-reg [31:0] ram_rdata;
+wire ram_ready;
+wire [31:0] ram_rdata;
 
 assign mem_ready = ram_ready;
 assign mem_rdata = ram_rdata;
@@ -393,6 +395,7 @@ always @(posedge clk, negedge resetn) begin
 
         rom_cnt <= 3'd0;
         rom_do_valid <= 1'b0;
+        rom_do_buf <= 0;
 
     end else begin
         if (!romload_req)
@@ -468,6 +471,7 @@ always @(posedge clk, negedge resetn) begin
     if (~resetn) begin
         time_reg <= 0;
         time_cnt <= 0;
+        cycle_reg <= 0;
 
     end else begin
         cycle_reg <= cycle_reg + 1;

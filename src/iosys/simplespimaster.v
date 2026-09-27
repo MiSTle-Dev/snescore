@@ -30,18 +30,20 @@ assign reg_wait = wait_buf & (reg_byte_we | reg_word_we);
 
 reg [7:0] tx_byte;
 wire [7:0] rx_byte /* synthesis syn_keep=1 */;
+wire spi_ready;
 reg spi_start;
 
 reg wait_buf = 1;
 reg [1:0] cnt;  // how many bytes are already sent
 reg reg_byte_we_r, reg_word_we_r;
 reg active, new_request;
+wire new_request_t = (reg_byte_we && ~reg_byte_we_r) || (reg_word_we && ~reg_word_we_r);
 
 SPI_Master #(.CLKS_PER_HALF_BIT(2)) spi_io_master (
 // SPI_Master #(.CLKS_PER_HALF_BIT(4)) spi_io_master (
   .i_Clk(clk), .i_Rst_L(resetn),
   .i_TX_Byte(tx_byte), .i_TX_DV(spi_start), .o_TX_Ready(spi_ready),
-  .o_RX_DV(spi_rxdv), .o_RX_Byte(rx_byte),
+  .o_RX_DV(), .o_RX_Byte(rx_byte),
   .o_SPI_Clk(sck), .i_SPI_MISO(miso), .o_SPI_MOSI(mosi)
 );
 
@@ -54,8 +56,9 @@ always @(posedge clk) begin
         reg_word_we_r <= 0;
         cnt <= 0;
         active <= 0;
+        new_request <= 0;
+        reg_do <= 0;
     end else begin
-        reg new_request_t = reg_byte_we && ~reg_byte_we_r || reg_word_we && ~reg_word_we_r;
         if (new_request_t)
             new_request <= 1;
         reg_byte_we_r <= reg_byte_we;

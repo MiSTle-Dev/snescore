@@ -141,6 +141,8 @@ always @(posedge clk) begin
         cmd_reg <= 0;
         data_reg <= 0;
         rom_loading <= 0;
+        rom_do <= 0;
+        rom_do_valid <= 0;
         rom_remain <= 0;
         core_config <= 0;
         data_cnt <= 0;
@@ -150,6 +152,11 @@ always @(posedge clk) begin
         we <= 0;
         cursor_x <= 0;
         cursor_y <= 0;
+        overlay_reg <= 1;
+        hid1 <= 0;
+        hid2 <= 0;
+        response_type <= 0;
+        response_req <= 0;
     end else begin
         rom_do_valid <= 0;
         we <= 0;
@@ -273,7 +280,13 @@ reg [15:0] joy2_reg;
 always @(posedge clk) begin
     if (!resetn) begin
         joy_timer <= 0;
-        send_state <= 0;
+        joy1_reg <= 0;
+        joy2_reg <= 0;
+        send_state <= SEND_IDLE;
+        send_idx <= 0;
+        tx_data <= 0;
+        tx_valid <= 0;
+        response_ack <= 0;
     end else begin
         tx_valid <= 0;
         

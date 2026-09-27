@@ -77,7 +77,7 @@ module sdram_snes
 
     output            refreshing,
 
-    output reg        busy
+    output            ready
 );
 
 reg [15:0] mem_cpu [4*1024*1024];       // max 8MB
@@ -92,6 +92,7 @@ reg cycle;          // cycle=1 at clkref posedge
 reg clkref_r;
 
 assign refreshing = 1'b0;
+assign ready = 1'b1;           // Simulation memory has no initialization delay.
 
 always @(posedge mclk) begin
     cycle <= ~cycle;

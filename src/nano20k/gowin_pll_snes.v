@@ -7,14 +7,14 @@
 //Device Version: C
 //Created Time: Sat Mar 16 15:45:29 2024
 
-module gowin_pll_snes (clkout, clkoutp, clkoutd, clkin);
+module gowin_pll_snes (clkout, clkoutp, clkoutd, lock, clkin);
 
 output clkout;
 output clkoutp;
 output clkoutd;
 input clkin;
 
-wire lock_o;
+output lock;
 wire clkoutd3_o;
 wire gw_vcc;
 wire gw_gnd;
@@ -24,7 +24,7 @@ assign gw_gnd = 1'b0;
 
 rPLL rpll_inst (
     .CLKOUT(clkout),
-    .LOCK(lock_o),
+    .LOCK(lock),
     .CLKOUTP(clkoutp),
     .CLKOUTD(clkoutd),
     .CLKOUTD3(clkoutd3_o),

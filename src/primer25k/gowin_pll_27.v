@@ -7,12 +7,12 @@
 //Device Version: A
 //Created Time: Sun Dec 24 21:50:00 2023
 
-module gowin_pll_27 (clkout0, clkin);
+module gowin_pll_27 (clkout0, lock, clkin);
 
 output clkout0;
 input clkin;
 
-wire lock;
+output lock;
 wire clkout1;
 wire clkout2;
 wire clkout3;

@@ -140,7 +140,7 @@ module sdram_snes
     output            refreshing,
     output reg [23:0] total_refresh,
 
-    output wire       busy
+    output wire       ready
 );
 
 // Tri-state DQ input/output
@@ -239,7 +239,7 @@ always @(posedge clk) begin
 end
 
 assign refreshing = refresh;
-assign busy       = ~normal;
+assign ready      = normal;
 
 // ROM: bank 0,1
 // WRAM, BSRAM, RV: bank 1

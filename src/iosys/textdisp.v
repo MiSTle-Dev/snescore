@@ -97,32 +97,42 @@ end
 always @(posedge hclk) begin    // actual state machine
     reg [7:0] logo_x, logo_y;
 
-    x_r <= x;
-
-    case (state)
-    MAIN, OUTPUT: begin
+    if (!resetn) begin
         state <= MAIN;
-        if (state == OUTPUT) color_buf <= color;
-        if (x[0] != x_r[0]) begin   // moved to new pixel
-            if (x >= LOGO_X && x < LOGO_X+72 && y >= LOGO_Y && y < LOGO_Y+14) begin
-                state <= FETCH_LOGO;
-                logo_active <= 1;
-            end else begin
-                state <= FETCH_FONT;
-                logo_active <= 0;
+        x_r <= 0;
+        color_buf <= COLOR_BACK;
+        logo_active <= 0;
+        logo_addr <= 0;
+        logo_xoff <= 0;
+        is_cursor <= 0;
+    end else begin
+        x_r <= x;
+
+        case (state)
+        MAIN, OUTPUT: begin
+            state <= MAIN;
+            if (state == OUTPUT) color_buf <= color;
+            if (x[0] != x_r[0]) begin   // moved to new pixel
+                if (x >= LOGO_X && x < LOGO_X+72 && y >= LOGO_Y && y < LOGO_Y+14) begin
+                    state <= FETCH_LOGO;
+                    logo_active <= 1;
+                end else begin
+                    state <= FETCH_FONT;
+                    logo_active <= 0;
+                end
             end
+            logo_x = x - LOGO_X;
+            logo_y = y - LOGO_Y;
+            logo_addr <= {logo_y, 3'b0} + logo_y + logo_x[6:3];
+            logo_xoff <= logo_x[2:0];
+            is_cursor <= x[7:3] == 0;
         end
-        logo_x = x - LOGO_X;
-        logo_y = y - LOGO_Y;
-        logo_addr <= {logo_y, 3'b0} + logo_y + logo_x[6:3];
-        logo_xoff <= logo_x[2:0];
-        is_cursor <= x[7:3] == 0;
+
+        FETCH_FONT, FETCH_LOGO: state <= OUTPUT;
+
+        default: state <= MAIN;
+        endcase
     end
-
-    FETCH_FONT, FETCH_LOGO: state <= OUTPUT;
-
-    default: ;
-    endcase
 end
 
 endmodule

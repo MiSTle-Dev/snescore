@@ -10,6 +10,7 @@ module snes2hdmi #(
 ) (
 	input clk,      // snes clock
 	input resetn,
+	input pixel_resetn,
 
     // snes video and audio signals
     input dotclk,
@@ -35,7 +36,6 @@ module snes2hdmi #(
 	// video clocks
 	input clk_pixel,
 	input clk_5x_pixel,
-	input locked,
 
     output reg pause_snes_for_frame_sync,
 
@@ -272,7 +272,7 @@ module snes2hdmi #(
           .clk_pixel(clk_pixel), 
           .clk_audio(clk_audio),
           .rgb(rgb), 
-          .reset( ~resetn ),
+          .reset( ~pixel_resetn ),
           .audio_sample_word(audio_sample_word),
           .tmds(tmds), 
           .tmds_clock(tmdsClk), 
