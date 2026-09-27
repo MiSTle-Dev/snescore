@@ -4,7 +4,7 @@
 `timescale 1ns / 1ps
 
 module snes2hdmi #(
-    parameter SNES_FREQ = 21_484_400,
+    parameter SNES_FREQ  = 21_484_400,
     parameter PIXEL_FREQ = 74_250_000
 ) (
 	input clk,      // snes clock
@@ -278,7 +278,8 @@ module snes2hdmi #(
     end
 
     // HDMI output.
-    logic[2:0] tmds;
+    logic [2:0] tmds;
+    logic       tmds_clk;
 
     hdmi #( .VIDEO_ID_CODE(VIDEOID),
             .DVI_OUTPUT(0),
@@ -296,17 +297,24 @@ module snes2hdmi #(
           .reset( ~resetn ),
           .audio_sample_word(audio_sample_word),
           .tmds(tmds),
-          .tmds_clock(tmdsClk),
+          .tmds_clock(tmds_clk),
           .cx(cx),
           .cy(cy),
           .frame_width( frameWidth ),
           .frame_height( frameHeight ) );
 
+`ifdef GOWIN
     // Gowin LVDS output buffer
     ELVDS_OBUF tmds_bufds [3:0] (
         .I({clk_pixel, tmds}),
         .O({tmds_clk_p, tmds_d_p}),
         .OB({tmds_clk_n, tmds_d_n})
     );
+`else
+    assign tmds_clk_p = tmds_clk;
+    assign tmds_clk_n = 1'b0;
+    assign tmds_d_p   = tmds;
+    assign tmds_d_n   = 3'b0;
+`endif
 
 endmodule
