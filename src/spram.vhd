@@ -2,9 +2,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.std_logic_textio.all;
-
 library std;
 use std.textio.all;
+library work;
+use work.board_config.all;
 
 entity spram_sz is
 	generic (
@@ -71,7 +72,8 @@ begin
 			if enable = '1' then
 				if cs = '1' and wren = '1' then
 					mem(to_integer(unsigned(address))) <= data;
-				else
+				end if;
+				if cs = '0' or wren = '0' or VENDOR /= VENDOR_GOWIN then
 					q <= mem(to_integer(unsigned(address)));
 				end if;
 			end if;
