@@ -44,15 +44,17 @@ architecture rtl of spram_sz is
 				report "Unable to open RAM initialization file " & file_name
 				severity failure;
 
-			while not endfile(init_file) and init_addr < NUMWORDS loop
+			for addr in 0 to NUMWORDS-1 loop
+				exit when endfile(init_file);
+
 				readline(init_file, input_line);
-				while input_line'length > 0 and init_addr < NUMWORDS loop
-					hread(input_line, word, good);
-					exit when not good;
-					result(init_addr) := word;
-					init_addr := init_addr + 1;
-				end loop;
+				hread(input_line, word, good);
+				exit when not good;
+
+				result(init_addr) := word;
+				init_addr := init_addr + 1;
 			end loop;
+
 			file_close(init_file);
 		end if;
 		return result;
@@ -66,13 +68,13 @@ begin
 	process (clock)
 	begin
 		if rising_edge(clock) then
-            if enable = '1' then
-                if cs = '1' and wren = '1' then
-    				mem(to_integer(unsigned(address))) <= data;
-	    		else
-                    q <= mem(to_integer(unsigned(address)));
-                end if;
-            end if;
+			if enable = '1' then
+				if cs = '1' and wren = '1' then
+					mem(to_integer(unsigned(address))) <= data;
+				else
+					q <= mem(to_integer(unsigned(address)));
+				end if;
+			end if;
 		end if;
 	end process;
 end architecture rtl;
