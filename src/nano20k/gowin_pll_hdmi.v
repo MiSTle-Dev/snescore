@@ -1,10 +1,10 @@
-//Copyright (C)2014-2021 Gowin Semiconductor Corporation.
-//All rights reserved.
-//File Title: IP file
-//GOWIN Version: V1.9.8
-//Part Number: GW1NR-LV9QN88PC6/I5
-//Device: GW1NR-9C
-//Created Time: Fri Nov 12 14:05:41 2021
+//Copyright (C)2014-2026 Gowin Semiconductor Corporation.
+//Tool Version: V1.9.12.03
+//IP Version: 1.0
+//Part Number: GW2AR-LV18QN88C8/I7
+//Device: GW2AR-18
+//Device Version: C
+//Created Time: Sun Sep 27 18:30:09 2026
 
 // 27Mhz in, 371.25Mhz out
 module gowin_pll_hdmi (clkout, lock, clkin);
@@ -61,6 +61,6 @@ defparam rpll_inst.CLKOUTD_BYPASS = "false";
 defparam rpll_inst.DYN_SDIV_SEL = 2;
 defparam rpll_inst.CLKOUTD_SRC = "CLKOUT";
 defparam rpll_inst.CLKOUTD3_SRC = "CLKOUT";
-defparam rpll_inst.DEVICE = "GW2AR-18";
+defparam rpll_inst.DEVICE = "GW2AR-18C";
 
 endmodule //Gowin_rPLL
