@@ -4,14 +4,14 @@
 // cause of this could be from wrong CPHASE/FPHASE parameters
 module ecp5_hdmi_pll
 (
-    input clkin, // 27 MHz, 0 deg
-    output clkout0, // 371.25 MHz, 0 deg
-    output clkout1, // 74.25 MHz, 0 deg
+    input clkin, // 27.27 MHz, 0 deg
+    output clkout0, // 370.872 MHz, 0 deg
+    output clkout1, // 74.1744 MHz, 0 deg
     output locked
 );
-(* FREQUENCY_PIN_CLKI="27" *)
-(* FREQUENCY_PIN_CLKOP="371.25" *)
-(* FREQUENCY_PIN_CLKOS="74.25" *)
+(* FREQUENCY_PIN_CLKI="27.27" *)
+(* FREQUENCY_PIN_CLKOP="370.872" *)
+(* FREQUENCY_PIN_CLKOS="74.1744" *)
 (* ICP_CURRENT="12" *) (* LPF_RESISTOR="8" *) (* MFG_ENABLE_FILTEROPAMP="1" *) (* MFG_GMCREF_SEL="2" *)
 EHXPLLL #(
         .PLLRST_ENA("DISABLED"),
@@ -22,7 +22,7 @@ EHXPLLL #(
         .OUTDIVIDER_MUXB("DIVB"),
         .OUTDIVIDER_MUXC("DIVC"),
         .OUTDIVIDER_MUXD("DIVD"),
-        .CLKI_DIV(4),
+        .CLKI_DIV(5),
         .CLKOP_ENABLE("ENABLED"),
         .CLKOP_DIV(2),
         .CLKOP_CPHASE(1),
@@ -32,7 +32,7 @@ EHXPLLL #(
         .CLKOS_CPHASE(9),
         .CLKOS_FPHASE(0),
         .FEEDBK_PATH("CLKOP"),
-        .CLKFB_DIV(55)
+        .CLKFB_DIV(68)
     ) pll_i (
         .RST(1'b0),
         .STDBY(1'b0),

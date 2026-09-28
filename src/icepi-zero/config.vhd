@@ -24,8 +24,8 @@ package board_config is
     constant SDRAM_ROW_WIDTH  : integer := 13;
     constant SDRAM_16M        : boolean := false;
 
-    constant SNES_FREQ  : integer := 21_667_000;
-    constant PIXEL_FREQ : integer := 74_250_000;
+    constant SNES_FREQ  : integer := 21_428_600;
+    constant PIXEL_FREQ : integer := 74_174_400;
 
     constant S0_N : boolean := true;
     constant LED_N : boolean := false;
