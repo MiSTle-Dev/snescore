@@ -61,7 +61,7 @@ module snes2hdmi #(
     localparam ODIV_SEL_X5 = 2;
     localparam DUTYDA_SEL_X5 = "1000";
     localparam DYN_SDIV_SEL_X5 = 2;
-    
+
     localparam CLKFRQ = 74250;
 
     localparam AUDIO_BIT_WIDTH = 16;
@@ -85,7 +85,7 @@ module snes2hdmi #(
     wire [11:0] mem_portB_addr;
     reg [14:0] mem_portB_rdata;
     reg mem_writeto = 1'b0;     // current line we are writing to. we read from the other line
-   
+
     // We need to do a bit of synchronization as the SNES and HDMI run on separate clocks and they
     // do not align perfectly.
     // - Let SNES execute a bit faster (0.5%) than the HDMI stack. This way we always have enough pixels.
@@ -140,7 +140,7 @@ module snes2hdmi #(
         end
     end
 
-    // 
+    //
     // Data input
     //
     reg r_dotclk, r_vblank, r_hblank;
@@ -161,7 +161,7 @@ module snes2hdmi #(
             mem_writeto <= ~mem_writeto;
         end
     end
-    
+
 
     reg [31:0] audio_sample;
     reg [15:0] audio_sample_word [1:0];
@@ -211,7 +211,7 @@ module snes2hdmi #(
     wire [9:0] y0 = cy - 10'd24;
 
     // synthesizer takes care of integer const division with a few ALUs and no DSP usage
-    assign x = (cx - 256) / 3;  
+    assign x = (cx - 256) / 3;
     assign y = (cy - 24) / 3;
     // another way that works but uses more resources
     // 0.3333 = 0.0101010101 binary
@@ -244,9 +244,9 @@ module snes2hdmi #(
 //                 rgb <= {x, x, x};
 //             else
             if (~overlay)
-                rgb <= {mem_portB_rdata[4:0], 3'b0, mem_portB_rdata[9:5], 3'b0, mem_portB_rdata[14:10], 3'b0};                
+                rgb <= {mem_portB_rdata[4:0], 3'b0, mem_portB_rdata[9:5], 3'b0, mem_portB_rdata[14:10], 3'b0};
             else begin
-//                if (overlay_color == 0) 
+//                if (overlay_color == 0)
 //                    rgb <= {2'b0, mem_portB_rdata[4:0], 3'b0, mem_portB_rdata[9:5], 3'b0, mem_portB_rdata[14:10], 1'b0};
 //                else
                     rgb <= {overlay_color[4:0], 3'b0, overlay_color[9:5], 3'b0, overlay_color[14:10], 3'b0};
@@ -259,8 +259,8 @@ module snes2hdmi #(
     // HDMI output.
     logic[2:0] tmds;
 
-    hdmi #( .VIDEO_ID_CODE(VIDEOID), 
-            .DVI_OUTPUT(0), 
+    hdmi #( .VIDEO_ID_CODE(VIDEOID),
+            .DVI_OUTPUT(0),
             .VIDEO_REFRESH_RATE(VIDEO_REFRESH),
             .IT_CONTENT(1),
             .AUDIO_RATE(AUDIO_RATE),
@@ -268,15 +268,15 @@ module snes2hdmi #(
             .START_X(0),
             .START_Y(0) )
 
-    hdmi( .clk_pixel_x5(clk_5x_pixel), 
-          .clk_pixel(clk_pixel), 
+    hdmi( .clk_pixel_x5(clk_5x_pixel),
+          .clk_pixel(clk_pixel),
           .clk_audio(clk_audio),
-          .rgb(rgb), 
+          .rgb(rgb),
           .reset( ~pixel_resetn ),
           .audio_sample_word(audio_sample_word),
-          .tmds(tmds), 
-          .tmds_clock(tmdsClk), 
-          .cx(cx), 
+          .tmds(tmds),
+          .tmds_clock(tmdsClk),
+          .cx(cx),
           .cy(cy),
           .frame_width( frameWidth ),
           .frame_height( frameHeight ) );

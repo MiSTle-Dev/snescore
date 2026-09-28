@@ -174,12 +174,12 @@ end
 `elsif LATTICE
 // Clocks for Lattice ECP5
 ecp5_pll pll_snes (
-    .CLKI(sys_clk),
-    .CLKOP(uclk),
-    .CLKOS(mclk),
-    .CLKOS2(fclk),
-    .CLKOS3(clk27),
-    .LOCK(pll_snes_lock)
+    .clkin(sys_clk),
+    .clkout0(uclk),
+    .clkout1(mclk),
+    .clkout2(fclk),
+    .clkout3(clk27),
+    .locked(pll_snes_lock)
 );
 
 ecp5_hdmi_pll pll_hdmi (
@@ -425,11 +425,6 @@ parameter USE_GSU = 1;
 `else
 parameter USE_GSU = 0;
 `endif
-
-// `ifdef VERILATOR
-// parameter USE_DSPn = 1;
-// parameter USE_GSU = 1;
-// `endif
 
 `ifndef DISABLE_SNES
 main #(
@@ -729,7 +724,7 @@ controller_ds2 joy2_ds2 (
 wire [1:0] usb_oe, usb_dp_o, usb_dm_o;
 wire [9:0] usb_rom_addr [0:1];
 wire [3:0] usb_rom_data [0:1];
-wire [11:0] usb_game_buttons [0:1] /* synthesis syn_keep = 1 */;
+wire [11:0] usb_game_buttons [0:1];
 
 genvar usb_port;
 generate for (usb_port = 0; usb_port < 2; usb_port = usb_port + 1) begin : usb_hid_ports
@@ -779,7 +774,7 @@ usb_hid_host_dual_rom #(
 );
 
 `ifdef LATTICE
-// Swap controllers for IcePi (better physical access to 2nd USB port
+// Swap controllers for IcePi (better physical access to 2nd USB port)
 assign joy1_btns = usb_game_buttons[1];
 assign joy2_btns = usb_game_buttons[0];
 `else
