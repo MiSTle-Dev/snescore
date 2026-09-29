@@ -159,11 +159,11 @@ module serializer
         assign tmds_clock = clk_pixel;
     `elsif LATTICE
         // Modulo-5 counter in the 5x domain drives load vs shift
-        logic [2:0] bit_cnt;
+        logic [2:0] bit_cnt = 3'd4;
 
         always_ff @(posedge clk_pixel_x5) begin
             if (reset)
-                bit_cnt <= 3'd0;
+                bit_cnt <= 3'd4;
             else
                 bit_cnt <= (bit_cnt == 3'd4) ? 3'd0 : bit_cnt + 3'd1;
         end
