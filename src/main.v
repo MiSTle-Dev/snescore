@@ -682,18 +682,15 @@ GSUMap GSUMap
 	.ROM_OWNED(GSU_ROM_OWNED),
 	.ROM_ACCEPT(GSU_ROM_ACCEPT),
 	.ROM_DONE(GSU_ROM_DONE)
-//	.FASTROM(GSU_FASTROM),
-//
-//	.SS_BUSY(SS_BUSY),
-//	.SS_WR(SS_BUSY & SS_GSU_SEL & ~CPUWR_N),
-//	.SS_DO(SS_GSU_DI)
 );
 assign GSU_ROM_ADDR = gsu_map_rom_addr;
+assign SS_GSU_DI = 8'h00;
 end else begin
 assign MAP_ACTIVE[2] = 0;
 assign GSU_ROM_ADDR = 0;
 assign GSU_ROM_REQ = 0;
 assign GSU_ROM_OWNED = 0;
+assign SS_GSU_DI = 8'h00;
 end
 endgenerate
 
