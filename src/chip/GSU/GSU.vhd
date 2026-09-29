@@ -250,6 +250,8 @@ begin
 					if ADDR(7 downto 0) = x"30" then	--SFR LSB
 						FLAG_GO <= DI(5);
 						GSU_MEM_ACCESS <= DI(5);
+					elsif ADDR(7 downto 0) = x"38" then	--SCBR
+						SCBR <= DI;
 					elsif ADDR(7 downto 0) = x"3A" then	--SCMR
 						SCMR_MD <= DI(1 downto 0);
 						SCMR_HT <= DI(5) & DI(2);
@@ -273,8 +275,6 @@ begin
 							when x"7" =>						-- 3037
 								MS0 <= DI(5);
 								IRQ_OFF <= DI(7);
-							when x"8" =>						-- 3038
-								SCBR <= DI;
 							when x"9" =>						-- 3039
 								CLS <= DI(0);
 							when others => null;
