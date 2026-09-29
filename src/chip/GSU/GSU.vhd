@@ -22,7 +22,10 @@ entity GSU is
 		SYSCLKR_CE	: in std_logic;
 		
 		TURBO			: in std_logic;
-		FASTROM		: in std_logic;
+		ROM_REQ     : out std_logic;
+		ROM_OWNED   : out std_logic;
+		ROM_ACCEPT  : in std_logic;
+		ROM_DONE    : in std_logic;
 
 		IRQ_N			: out std_logic;
 		
@@ -34,15 +37,7 @@ entity GSU is
 		RAM_DI		: in std_logic_vector(7 downto 0);
 		RAM_DO		: out std_logic_vector(7 downto 0);
 		RAM_WE_N		: out std_logic;
-		RAM_CE_N		: out std_logic;
-
-		SS_BUSY			: in std_logic;
-		SS_WR			: in std_logic;
-		SS_DO			: out std_logic_vector(7 downto 0);
-		
-		DBG_IN_CACHE: out std_logic;
-		DBG_MC		: out Microcode_r;
-		DBG_GO_CNT	: out unsigned(15 downto 0)
+		RAM_CE_N		: out std_logic
 	);
 end GSU;
 
@@ -94,10 +89,12 @@ architecture rtl of GSU is
 	signal OPDATA 				: std_logic_vector(7 downto 0);
 	signal OP_N 				: unsigned(3 downto 0);
 	signal STATE 				: integer range 0 to 4;
+	signal OP_CYCLES 			: unsigned(2 downto 0);
+	signal OP_CYCLE_CNT 		: unsigned(2 downto 0);
+	signal OP_CYCLE_EN 		: std_logic;
 	
 	--CPU Core
 	signal EN 					: std_logic;
-	signal GO 					: std_logic;
 	signal CPU_EN 				: std_logic;
 	signal CLK_CE 				: std_logic;
 	signal SPEED 				: std_logic;
@@ -110,64 +107,25 @@ architecture rtl of GSU is
 	signal REG_LSB 			: std_logic_vector(7 downto 0);
 	signal DST_REG 			: unsigned(3 downto 0);
 	signal R14_CHANGE 		: std_logic;
-	signal R14_CHANGE_LATCH : std_logic;
-	--signal ROMST 				: ROMState_t;
-	signal ROMST 				: std_logic_vector(2 downto 0);
-	--signal RAMST 				: RAMState_t;
-	signal RAMST 				: std_logic_vector(3 downto 0);
+	signal ROMST 				: ROMState_t;
+	signal RAMST 				: RAMState_t;
 	signal ROM_FETCH_EN 		: std_logic;
 	signal RAM_FETCH_EN 		: std_logic;
 	signal CACHE_FETCH_EN 	: std_logic;
 	signal ROM_CACHE_EN 		: std_logic;
 	signal RAM_CACHE_EN 		: std_logic;
-	signal ROM_LOAD_START 	: std_logic;
-	signal ROM_FETCH_START 	: std_logic;
-	signal ROM_LOAD_PEND 	: std_logic;
-	signal ROM_FETCH_PEND 	: std_logic;
-	signal ROM_LOAD_WAIT		: std_logic;
-	signal ROM_FETCH_WAIT 	: std_logic;
-	signal ROM_CACHE_WAIT 	: std_logic;
-	signal ROM_LOAD_END 	: std_logic;
-	signal ROM_FETCH_END 	: std_logic;
-
-	signal RAM_LOAD_START 	: std_logic;
-	signal RAM_SAVE_START 	: std_logic;
-	signal RAM_PCF_START 	: std_logic;
-	signal RAM_RPIX_START 	: std_logic;
-	signal RAM_FETCH_START 	: std_logic;
-	signal RAM_LOAD_PEND 	: std_logic;
-	signal RAM_SAVE_PEND 	: std_logic;
-	signal RAM_PCF_PEND 		: std_logic;
-	signal RAM_RPIX_PEND 	: std_logic;
-	signal RAM_FETCH_PEND	: std_logic;
-	signal RAM_LOAD_WAIT		: std_logic;
-	signal RAM_SAVE_WAIT 	: std_logic;
-	signal RAM_PCF_WAIT 		: std_logic;
-	signal RAM_FETCH_WAIT 	: std_logic;
-	signal RAM_CACHE_WAIT 	: std_logic;
-	signal RAM_PCF_EXEC 	: std_logic;
-	signal RAM_RPIX_EXEC 	: std_logic;
-	signal RAM_LOAD_END 	: std_logic;
-	signal RAM_SAVE_END 	: std_logic;
-	signal RAM_PCF_END		: std_logic;
-	signal RAM_FETCH_END	: std_logic;
-	signal RAM_CACHE_END	: std_logic;
-	signal RAM_PCF_FULL 		: std_logic;
-	signal ROM_ACCESS_CNT 	: unsigned(2 downto 0);
+	signal ROM_LOAD_EN 		: std_logic;
+	signal RAM_LOAD_EN 		: std_logic;
 	signal RAM_ACCESS_CNT 	: unsigned(2 downto 0);
+	signal ROM_LAST_CYCLE	: std_logic;
+	signal RAM_LAST_CYCLE	: std_logic; 
+	signal ROM_NEED_WAIT 	: std_logic;
+	signal RAM_NEED_WAIT 	: std_logic;
 	signal CODE_IN_ROM 		: std_logic;
 	signal CODE_IN_RAM 		: std_logic;
-	signal ROM_BUF				: std_logic_vector(7 downto 0);
 	signal RAM_BYTES			: std_logic;	
 	signal RAM_WORD			: std_logic;	
-	signal RAM_LOAD_BUF		: std_logic_vector(15 downto 0);
-	signal RAM_BUF				: std_logic_vector(7 downto 0);
-	
-	--signal MULTST				: MULTState_t;
-	signal MULTST				: std_logic;
-	signal MULT_ACCESS_CNT 	: unsigned(2 downto 0);
-	signal MULT_WAIT			: std_logic;
-	signal LMULT				: std_logic;
+	signal RAM_LOAD_DATA		: std_logic_vector(15 downto 0);
 
 	--CPU Code Cache
 	signal CACHE_VALID		: std_logic_vector(31 downto 0);
@@ -194,9 +152,13 @@ architecture rtl of GSU is
 	signal PCF_WR_DATA 		: std_logic_vector(7 downto 0);
 	signal RPIX_DATA 			: std_logic_vector(7 downto 0);
 	signal PCF_RW 				: std_logic;
-	signal PCF_WO 				: std_logic;
+	signal PCN 					: std_logic;
 	signal PC0_FULL 			: std_logic;
+	signal PC1_FULL 			: std_logic;
 	signal PC0_EMPTY 			: std_logic;
+	signal PC1_EMPTY			: std_logic; 
+	signal PC0 					: integer range 0 to 1;
+	signal PC1 					: integer range 0 to 1;
 	signal PC_X 				: unsigned(7 downto 0);
 	signal PC_Y 				: unsigned(7 downto 0);
 	signal PC0_OFFS_HIT 		: std_logic;
@@ -217,19 +179,11 @@ architecture rtl of GSU is
 	signal GSU_ROM_ACCESS 	: std_logic;
 	signal GSU_RAM_ACCESS 	: std_logic;
 	signal SFR 					: std_logic_vector(15 downto 0);
-	signal SNES_ROM_ADDR 	: std_logic_vector(23 downto 0);
 	signal SNES_RAM_A 		: std_logic_vector(16 downto 0);
 	signal INT_ROM_A 			: std_logic_vector(23 downto 0);
 	signal SNES_CACHE_ADDR 	: std_logic_vector(8 downto 0);
---	signal GSU_ROM_RD 		: std_logic;
-	signal ROM_RD_CNT 		: unsigned(1 downto 0);
-	
-	signal GO_CNT 				: unsigned(15 downto 0);
-
-	signal SS_BUSY_SR			: std_logic_vector(1 downto 0);
-	signal SS_MEM_BUSY			: std_logic;
-	signal SS_RAM_LOAD_WORD		: std_logic;
-	signal SS_RAM_STORE_WORD	: std_logic;
+	signal ROM_REQUESTED     : std_logic;
+	signal ROM_DATA_READY    : std_logic;
 
 begin
 
@@ -276,7 +230,6 @@ begin
 	process(CLK, RST_N)
 	begin
 		if RST_N = '0' then
-			GO <= '0';
 			BRAMR <= (others => '0');
 			PBR <= (others => '0');
 			FLAG_GO <= '0';
@@ -290,16 +243,12 @@ begin
 			RAN <= '0';
 			RON <= '0';
 			GSU_MEM_ACCESS <= '0';
-			
-			GO_CNT <= (others => '0');
 		elsif rising_edge(CLK) then
 			if ENABLE = '1' then
 				if MMIO_WR = '1' then
 					if ADDR(7 downto 0) = x"30" then	--SFR LSB
-						GO <= DI(5);
+						FLAG_GO <= DI(5);
 						GSU_MEM_ACCESS <= DI(5);
-					elsif ADDR(7 downto 0) = x"38" then	--SCBR
-						SCBR <= DI;
 					elsif ADDR(7 downto 0) = x"3A" then	--SCMR
 						SCMR_MD <= DI(1 downto 0);
 						SCMR_HT <= DI(5) & DI(2);
@@ -312,87 +261,56 @@ begin
 				
 				if EN = '0' then
 					if MMIO_REG_WR = '1' and ADDR(4 downto 0) = "11111" then
-						GO <= '1';
+						FLAG_GO <= '1';
 						GSU_MEM_ACCESS <= '1';
-					elsif MMIO_WR = '1' then
-						case ADDR(7 downto 0) is
-							when x"33" =>						-- 3033
+					elsif MMIO_WR = '1' and ADDR(7 downto 4) = x"3" then
+						case ADDR(3 downto 0) is
+							when x"3" =>						-- 3033
 								BRAMR <= DI;
-							when x"34" =>						-- 3034
+							when x"4" =>						-- 3034
 								PBR <= DI;
-							when x"37" =>						-- 3037
+							when x"7" =>						-- 3037
 								MS0 <= DI(5);
 								IRQ_OFF <= DI(7);
---							when x"38" =>						-- 3038
---								SCBR <= DI;
-							when x"39" =>						-- 3039
+							when x"8" =>						-- 3038
+								SCBR <= DI;
+							when x"9" =>						-- 3039
 								CLS <= DI(0);
 							when others => null;
 						end case;
 					end if;
-				else
-					if CPU_EN = '1' then 
-						if OP.OP = OP_STOP then
-							FLAG_GO <= '0';
-							FLAG_IRQ <= '1';
-							if SYSCLKF_CE = '1' then
-								GSU_MEM_ACCESS <= '0';
-							end if;
-						elsif OP.OP = OP_LJMP then
-							PBR <= R(to_integer(OP_N))(7 downto 0);
+				elsif CPU_EN = '1' then 
+					if OP.OP = OP_STOP then
+						FLAG_GO <= '0';
+						FLAG_IRQ <= '1';
+						if SYSCLKF_CE = '1' then
+							GSU_MEM_ACCESS <= '0';
 						end if;
+					elsif OP.OP = OP_LJMP then
+						PBR <= R(to_integer(OP_N))(7 downto 0);
 					end if;
 				end if;
-				
-				if ENABLE = '1' and CLK_CE = '1' then
-					if GO = '1' then
-						FLAG_GO <= '1';
-						GO <= '0';
-						GO_CNT <= GO_CNT + 1;
-					end if;
-				end if;
-				
 				
 				if SYSCLKF_CE = '1' and FLAG_GO = '0' and GSU_MEM_ACCESS = '1' then
 					GSU_MEM_ACCESS <= '0';
 				end if;
 			end if;
-
-			if SS_WR = '1' then
-				case ADDR(7 downto 0) is
-					when x"00" =>
-						GO <= DI(0);
-						GSU_MEM_ACCESS <= DI(1);
-						FLAG_IRQ <= DI(2);
-						FLAG_GO <= DI(3);
-						SCMR_MD <= DI(5 downto 4);
-						SCMR_HT <= DI(7 downto 6);
-					when x"01" =>
-						SCBR <= DI;
-					when x"02" =>
-						BRAMR <= DI;
-					when x"03" =>
-						PBR <= DI;
-					when x"04" =>
-						RAN <= DI(0);
-						RON <= DI(1);
-						MS0 <= DI(2);
-						IRQ_OFF <= DI(3);
-						CLS <= DI(4);
-					when others => null;
-				end case;
-			end if;
 		end if;
 	end process; 
 	
-	GSU_ROM_ACCESS <= GSU_MEM_ACCESS and RON and not SS_MEM_BUSY;
-	GSU_RAM_ACCESS <= GSU_MEM_ACCESS and RAN and not SS_MEM_BUSY;
+	GSU_ROM_ACCESS <= GSU_MEM_ACCESS and RON;
+	ROM_OWNED <= GSU_ROM_ACCESS;
+	ROM_REQ <= '1' when GSU_ROM_ACCESS = '1' and
+	                    (ROMST = ROMST_LOAD or ROMST = ROMST_CACHE or
+	                     (ROMST = ROMST_FETCH and IN_CACHE = '0')) and
+	                    ROM_REQUESTED = '0' and ROM_DATA_READY = '0' else '0';
+	GSU_RAM_ACCESS <= GSU_MEM_ACCESS and RAN;
 	
 	
 	SFR <= FLAG_IRQ & "0" & "0" & FLAG_B & "0" & "0" & FLAG_ALT2 & FLAG_ALT1 & "0" & FLAG_R & FLAG_GO & FLAG_OV & FLAG_S & FLAG_CY & FLAG_Z & "0";
 	
 	process( MMIO_SEL, MMIO_REG_SEL, MMIO_CACHE_SEL, ROM_SEL, SRAM_SEL, ADDR, 
-				R, SFR, BRAMR, PBR, ROMBR, RAMBR, CBR, BRAM_CACHE_Q_B, GSU_ROM_ACCESS, ROM_DI, RAM_DI )
+				R, SFR, BRAMR, PBR, ROMBR, RAMBR, CBR, BRAM_CACHE_Q_B, FLAG_GO, GSU_ROM_ACCESS, ROM_DI, RAM_DI )
 	begin
 		DO <= x"00";
 		if ROM_SEL = '1' then
@@ -446,50 +364,102 @@ begin
 		end if;
 	end process;
 
+	INT_ROM_A <= ADDR when GSU_ROM_ACCESS = '0' else 
+					 CACHE_SRC_ADDR when ROMST = ROMST_CACHE and GSU_ROM_ACCESS = '1' else 
+					 ROMBR & R(14) when ROMST = ROMST_LOAD and GSU_ROM_ACCESS = '1' else 
+					 PBR & R(15) when ROMST = ROMST_FETCH and GSU_ROM_ACCESS = '1' else 
+					 (others => '1');
+
+				
+	ROM_A <= INT_ROM_A(20 downto 0) when INT_ROM_A(22) = '1' else INT_ROM_A(21 downto 16) & INT_ROM_A(14 downto 0);
+	
+	RAM_A <= SNES_RAM_A when GSU_RAM_ACCESS = '0' else 
+				CACHE_SRC_ADDR(16 downto 0) when RAMST = RAMST_CACHE and GSU_RAM_ACCESS = '1' else 
+				RAMBR(0) & RAMADDR(15 downto 1) & (RAMADDR(0) xor RAM_BYTES) when (RAMST = RAMST_LOAD or RAMST = RAMST_SAVE) and GSU_RAM_ACCESS = '1' else
+				PBR(0) & R(15) when RAMST = RAMST_FETCH and GSU_RAM_ACCESS = '1' else 
+				PCF_RAM_A when RAMST = RAMST_PCF and GSU_RAM_ACCESS = '1' else
+				RPIX_RAM_A when RAMST = RAMST_RPIX and GSU_RAM_ACCESS = '1' else
+				SNES_RAM_A;
+				
+	RAM_DO <= DI when GSU_RAM_ACCESS = '0' else 
+				 RAMDR( 7 downto 0) when RAMST = RAMST_SAVE and RAM_BYTES = '0' and GSU_RAM_ACCESS = '1' else
+				 RAMDR(15 downto 8) when RAMST = RAMST_SAVE and RAM_BYTES = '1' and GSU_RAM_ACCESS = '1' else
+				 PCF_WR_DATA when RAMST = RAMST_PCF and GSU_RAM_ACCESS = '1' else
+				 DI;
+	
+	RAM_WE_N <= '1' when ENABLE = '0' else 
+					WR_N when GSU_RAM_ACCESS = '0' else 
+					'0' when RAMST = RAMST_SAVE and RAM_LAST_CYCLE = '1' and GSU_RAM_ACCESS = '1' and EN = '1' else 
+					not PCF_RW when RAMST = RAMST_PCF and RAM_LAST_CYCLE = '1' and GSU_RAM_ACCESS = '1' else 
+					'1';
+
+	RAM_CE_N <= '0' when ENABLE = '0' else 
+					not SRAM_SEL when GSU_RAM_ACCESS = '0' else 
+					'0' when RAMST /= RAMST_IDLE and GSU_RAM_ACCESS = '1' else 
+					'1';
+
 	IRQ_N <= not FLAG_IRQ or IRQ_OFF;
 	
 	
 	--CPU Core
-	CODE_IN_ROM <= '1' when PBR <= x"5F" or (PBR >= x"80" and FASTROM = '1') else '0';
+	CODE_IN_ROM <= '1' when PBR <= x"5F" else '0';
 	CODE_IN_RAM <= '1' when PBR(7 downto 1) = "0111000" else '0';
 	IN_CACHE <= '1' when CACHE_POS(15 downto 9) = "0000000" else '0';
 	VAL_CACHE <= CACHE_VALID(to_integer(CACHE_POS(8 downto 4)));
 	
-	SPEED <= CLS;
-
-	-- Save state: Allow GSU MEM access a few cycles after stopping CLK_CE and before starting CLK_CE.
-	SS_MEM_BUSY <= SS_BUSY and SS_BUSY_SR(1);
-
+	CACHE_FETCH_EN <= VAL_CACHE and IN_CACHE;
+	ROM_FETCH_EN <= '1' when ROMST = ROMST_FETCH and ROM_LAST_CYCLE = '1' and RON = '1' else '0';
+	RAM_FETCH_EN  <= '1' when RAMST = RAMST_FETCH and RAM_LAST_CYCLE = '1' and RAN = '1' else '0';
+	ROM_CACHE_EN <= '1' when ROMST = ROMST_CACHE and ROM_LAST_CYCLE = '1' and RON = '1' else '0';
+	RAM_CACHE_EN  <= '1' when RAMST = RAMST_CACHE and RAM_LAST_CYCLE = '1' and RAN = '1' else '0';
+	ROM_LOAD_EN <= '1' when ROMST = ROMST_LOAD and ROM_LAST_CYCLE = '1' and RON = '1' else '0';
+	RAM_LOAD_EN  <= '1' when RAMST = RAMST_LOAD and RAM_LAST_CYCLE = '1' and RAM_BYTES = RAM_WORD and RAN = '1' else '0';
+	
+	ROM_NEED_WAIT <= '1' when (R14_CHANGE = '1' or MC.ROMWAIT = '1') and (ROMST = ROMST_LOAD or ROMST = ROMST_CACHE or (ROMST = ROMST_FETCH and ROM_LAST_CYCLE = '0') or RON = '0') else '0';
+	RAM_NEED_WAIT <= '1' when (MC.RAMWAIT = '1' and (RAMST = RAMST_SAVE or RAMST = RAMST_PCF or RAN = '0')) or
+	                          (OP.OP = OP_STOP and (RAMST = RAMST_SAVE or RAMST = RAMST_PCF)) or 
+									  (OP.OP = OP_PLOT and (PC0_OFFS_HIT = '0' or PC0_FULL = '1') and (RAMST = RAMST_SAVE or RAMST = RAMST_PCF or RAN = '0')) or
+									  RAMST = RAMST_LOAD or 
+									  RAMST = RAMST_CACHE or 
+									  (RAMST = RAMST_FETCH and RAM_LAST_CYCLE = '0') or 
+									  RAMST = RAMST_RPIX else '0'; 
+	
 	process(CLK, RST_N)
 	begin
 		if RST_N = '0' then
 			CLK_CE <= '0';
 		elsif rising_edge(CLK) then
 			if ENABLE = '1' then
-				if SS_BUSY = '1' or SS_BUSY_SR /= "00" then
-					CLK_CE <= '0';
-				else
-					CLK_CE <= not CLK_CE or SPEED or TURBO;
-				end if;
-
-				if SYSCLKF_CE = '1' then
-					SS_BUSY_SR <= SS_BUSY_SR(0) & SS_BUSY;
+				CLK_CE <= not CLK_CE;
+			end if;
+		end if;
+	end process; 
+	
+	SPEED <= CLS or TURBO;
+	
+	EN <= ENABLE and FLAG_GO and (CLK_CE or SPEED);
+	
+	OP_CYCLES <= "000" when TURBO = '1' else
+					 not MS0 & "11" when OP.OP = OP_FMULT or OP.OP = OP_LMULT else
+					 "00" & not MS0 when OP.OP = OP_MULT or OP.OP = OP_UMULT else
+					 "000"; 
+	
+	process(CLK, RST_N)
+	begin
+		if RST_N = '0' then
+			OP_CYCLE_CNT <= (others => '0');
+		elsif rising_edge(CLK) then
+			if EN = '1' then
+				OP_CYCLE_CNT <= OP_CYCLE_CNT + 1;
+				if OP_CYCLE_CNT = OP_CYCLES then
+					OP_CYCLE_CNT <= (others => '0');
 				end if;
 			end if;
 		end if;
 	end process; 
-		
-	process(CLK)
-	begin
-		if falling_edge(CLK) then
-			EN <= ENABLE and FLAG_GO and CLK_CE;
-		end if;
-	end process;
 	
-	CPU_EN <= EN and
-	          not ROM_LOAD_WAIT and not ROM_FETCH_WAIT and not ROM_CACHE_WAIT and 
-	          not RAM_LOAD_WAIT and not RAM_SAVE_WAIT and not RAM_FETCH_WAIT and not RAM_CACHE_WAIT and not RAM_PCF_WAIT and 
-				 not MULT_WAIT;
+	OP_CYCLE_EN <= '1' when OP_CYCLE_CNT = OP_CYCLES else '0';
+	CPU_EN <= EN and (ROM_FETCH_EN or RAM_FETCH_EN or (CACHE_FETCH_EN and OP_CYCLE_EN)) and not RAM_NEED_WAIT and not ROM_NEED_WAIT;
 	
 	process(CLK, RST_N)
 	begin
@@ -508,22 +478,17 @@ begin
 					end if;
 				elsif ROM_FETCH_EN = '1' then
 					if MC.LAST_CYCLE = '1' then
-						OPCODE <= ROM_BUF;
+						OPCODE <= ROM_DI;
 					else
-						OPDATA <= ROM_BUF;
+						OPDATA <= ROM_DI;
 					end if;
 				elsif RAM_FETCH_EN = '1' then
 					if MC.LAST_CYCLE = '1' then
-						OPCODE <= RAM_BUF;
+						OPCODE <= RAM_DI;
 					else
-						OPDATA <= RAM_BUF;
+						OPDATA <= RAM_DI;
 					end if;
 				end if;
-			end if;
-
-			if SS_WR = '1' then
-				if ADDR(7 downto 0) = x"05" then OPCODE <= DI; end if;
-				if ADDR(7 downto 0) = x"06" then OPDATA <= DI; end if;
 			end if;
 		end if;
 	end process; 
@@ -583,25 +548,6 @@ begin
 					end if;
 				end if;
 			end if;
-
-			if SS_WR = '1' then
-				case ADDR(7 downto 0) is
-					when x"07" => CACHE_VALID(7 downto 0) <= DI;
-					when x"08" => CACHE_VALID(15 downto 8) <= DI;
-					when x"09" => CACHE_VALID(23 downto 16) <= DI;
-					when x"0A" => CACHE_VALID(31 downto 24) <= DI;
-					when x"0B" => CBR(7 downto 0) <= DI;
-					when x"0C" => CBR(15 downto 8) <= DI;
-					when x"0D" => CACHE_SRC_ADDR(7 downto 0) <= DI;
-					when x"0E" => CACHE_SRC_ADDR(15 downto 8) <= DI;
-					when x"0F" => CACHE_SRC_ADDR(23 downto 16) <= DI;
-					when x"10" => CACHE_DST_ADDR(7 downto 0) <= unsigned(DI);
-					when x"11" =>
-						CACHE_DST_ADDR(8) <= DI(3);
-						CACHE_RUN <= DI(4);
-					when others => null;
-				end case;
-			end if;
 		end if;
 	end process; 
 	
@@ -619,18 +565,253 @@ begin
 		wren_b		=> BRAM_CACHE_WE_B,
 		q_b			=> BRAM_CACHE_Q_B
 	);
-	BRAM_CACHE_ADDR_A <= std_logic_vector(CACHE_POS(8 downto 0));
-	BRAM_CACHE_DI_A <= x"00";
-	BRAM_CACHE_WE_A <= '0';
+	BRAM_CACHE_ADDR_A <= std_logic_vector(CACHE_DST_ADDR) when ROMST = ROMST_CACHE or RAMST = RAMST_CACHE else std_logic_vector(CACHE_POS(8 downto 0));
+	BRAM_CACHE_DI_A <= ROM_DI when CODE_IN_ROM = '1' else 
+					  RAM_DI when CODE_IN_RAM = '1' else
+					  x"00";
+	BRAM_CACHE_WE_A <= '1' when ROM_CACHE_EN = '1' or RAM_CACHE_EN = '1' else '0';
 	
-	BRAM_CACHE_ADDR_B <= std_logic_vector(CACHE_DST_ADDR) when FLAG_GO = '1' and SS_MEM_BUSY = '0' else SNES_CACHE_ADDR;
-	BRAM_CACHE_DI_B <= DI when SS_MEM_BUSY = '1' else
-					       ROM_BUF when FLAG_GO = '1' and CODE_IN_ROM = '1' else
-					       RAM_BUF when FLAG_GO = '1' and CODE_IN_RAM = '1' else
-					       DI;
-	BRAM_CACHE_WE_B <= ROM_CACHE_EN or RAM_CACHE_EN when FLAG_GO = '1' and SS_MEM_BUSY = '0' else MMIO_CACHE_WR;
+	BRAM_CACHE_ADDR_B <= SNES_CACHE_ADDR;
+	BRAM_CACHE_DI_B <= DI;
+	BRAM_CACHE_WE_B <= MMIO_CACHE_WR when ENABLE = '1' and FLAG_GO = '0' else '0';
 	
-	 
+	
+	--Memory buses
+	R14_CHANGE <= '1' when DST_REG = 14 and (MC.DREG(1) = '1' or MC.DREG(0) = '1') and MC.LAST_CYCLE = '1' else '0';
+	ROM_LAST_CYCLE <= ROM_DATA_READY;
+	process(CLK, RST_N)
+	begin
+		if RST_N = '0' then
+			ROM_REQUESTED <= '0';
+			ROM_DATA_READY <= '0';
+		elsif rising_edge(CLK) then
+			if ROM_DONE = '1' then
+				ROM_REQUESTED <= '0';
+				ROM_DATA_READY <= '1';
+			elsif ROM_REQ = '1' and ROM_ACCEPT = '1' then
+				ROM_REQUESTED <= '1';
+			elsif ROM_DATA_READY = '1' and
+			      (ROMST = ROMST_IDLE or
+			       (EN = '1' and RON = '1' and
+			        (ROMST = ROMST_LOAD or
+			         (ROMST = ROMST_FETCH and CPU_EN = '1') or
+			         (ROMST = ROMST_CACHE and CPU_EN = '0')))) then
+				ROM_DATA_READY <= '0';
+			end if;
+		end if;
+	end process;
+	process(CLK, RST_N)
+	begin
+		if RST_N = '0' then
+			ROMDR <= (others => '0');
+			ROMST <= ROMST_IDLE;
+			FLAG_R <= '0';
+		elsif rising_edge(CLK) then
+			if EN = '1' then
+				case ROMST is
+					when ROMST_IDLE =>
+					
+					when ROMST_FETCH =>
+						if IN_CACHE = '1' then
+							ROMST <= ROMST_IDLE;
+						end if;
+					
+					when ROMST_LOAD =>
+						if ROM_LAST_CYCLE = '1' and RON = '1' then
+							ROMDR <= ROM_DI;
+							FLAG_R <= '0';
+							ROMST <= ROMST_IDLE;
+						end if;
+					
+					when ROMST_CACHE =>
+						if ROM_LAST_CYCLE = '1' and RON = '1' then
+							if CACHE_DST_ADDR(3 downto 0) = 15 then
+								ROMST <= ROMST_IDLE;
+							end if;
+						end if;
+						
+					when others => null;	
+				end case;
+				
+				if CPU_EN = '1' and (OP.OP = OP_STOP) then
+					ROMST <= ROMST_IDLE;
+				elsif (ROMST = ROMST_IDLE and RON = '1') or ROM_FETCH_EN = '1' or ROM_LOAD_EN = '1' then
+					if CPU_EN = '1' and R14_CHANGE = '1' then
+						FLAG_R <= '1';
+						ROMST <= ROMST_LOAD;
+					elsif IN_CACHE = '0' and CODE_IN_ROM = '1' and (ROMST = ROMST_IDLE or ROMST = ROMST_LOAD) then
+						ROMST <= ROMST_FETCH;
+					elsif IN_CACHE = '1' and VAL_CACHE = '0' and CODE_IN_ROM = '1' and ROMST = ROMST_IDLE then
+						ROMST <= ROMST_CACHE;
+					end if;
+				end if;
+				
+			end if;
+		end if;
+	end process; 
+	
+	process(CLK, RST_N)
+	begin
+		if RST_N = '0' then
+			ROM_RD_N <= '1';
+		elsif rising_edge(CLK) then
+			ROM_RD_N <= '1';
+			if GSU_ROM_ACCESS = '0' then
+				if SYSCLKR_CE = '1' or SYSCLKF_CE = '1' then
+					ROM_RD_N <= '0';
+				end if;
+			end if;
+		end if;
+	end process;
+	
+	RAM_LAST_CYCLE <= '1' when RAM_ACCESS_CNT = 0 else '0'; 
+	process(CLK, RST_N)
+		variable RAM_CYCLES : unsigned(2 downto 0);
+	begin
+		if RST_N = '0' then
+			RAMADDR <= (others => '0');
+			RAMDR <= (others => '0');
+			RAM_LOAD_DATA <= (others => '0');
+			RAM_WORD <= '0';
+			RAM_BYTES <= '0';
+			RAM_ACCESS_CNT <= "001";
+			RAMST <= RAMST_IDLE;
+			PCF_RW <= '0';
+		elsif rising_edge(CLK) then
+			if EN = '1' then
+				if TURBO = '1' then
+					RAM_CYCLES := "011";
+				elsif SPEED = '0' then
+					RAM_CYCLES := "001";
+				else 
+					RAM_CYCLES := "100";
+				end if;
+
+				if CPU_EN = '1' then
+					if MC.RAMADDR = "001" then
+						RAMADDR(7 downto 0) <= OPDATA;
+					elsif MC.RAMADDR = "010" then
+						RAMADDR(15 downto 8) <= OPDATA;
+					elsif MC.RAMADDR = "011" then
+						RAMADDR <= R(to_integer(OP_N));
+					elsif MC.RAMADDR = "100" then
+						RAMADDR <= "0000000" & OPDATA & "0";
+					end if;
+				end if;
+			
+				case RAMST is
+					when RAMST_IDLE =>
+						
+					when RAMST_FETCH =>
+						if IN_CACHE = '1' then
+							RAMST <= RAMST_IDLE;
+						end if;
+												
+					when RAMST_CACHE =>
+						if RAM_LAST_CYCLE = '1' and RAN = '1' then
+							if CACHE_DST_ADDR(3 downto 0) = 15 then
+								RAMST <= RAMST_IDLE;
+							end if;
+						end if;
+						
+					when RAMST_LOAD =>
+						if RAM_LAST_CYCLE = '1' and RAN = '1' then
+							RAM_BYTES <= '1';
+							if RAM_BYTES = '0' then
+								RAM_LOAD_DATA(7 downto 0) <= RAM_DI;
+							else
+								RAM_LOAD_DATA(15 downto 8) <= RAM_DI;
+							end if;
+							if RAM_BYTES = RAM_WORD then
+								RAMST <= RAMST_IDLE;
+							end if;
+						end if;
+						
+					when RAMST_SAVE =>
+						if RAM_LAST_CYCLE = '1' and RAN = '1' then
+							RAM_BYTES <= '1';
+							if RAM_BYTES = RAM_WORD then
+								RAMST <= RAMST_IDLE;
+							end if;
+						end if;
+						
+					when RAMST_PCF =>
+						if RAM_LAST_CYCLE = '1' and RAN = '1' then
+							if PC1_FULL = '0' then
+								PCF_RW <= not PCF_RW;
+							end if;
+
+							if BPP_CNT = GetLastBPP(SCMR_MD) and PCF_RW = '1' then
+								PCF_RW <= '0';
+								if OP.OP = OP_RPIX then
+									RAMST <= RAMST_RPIX;
+								else
+									RAMST <= RAMST_IDLE;
+								end if;
+							end if;
+						end if;
+						
+					when RAMST_RPIX =>
+						if RAM_LAST_CYCLE = '1' and RAN = '1' then
+							if BPP_CNT = GetLastBPP(SCMR_MD) then
+								RAMST <= RAMST_IDLE;
+							end if;
+						end if;
+					
+					when others => null;	
+				end case;
+				
+				if CPU_EN = '1' and OP.OP = OP_STOP then
+					RAMST <= RAMST_IDLE;
+				elsif (RAMST = RAMST_IDLE and RAN = '1') or RAM_FETCH_EN = '1' or RAM_LOAD_EN = '1' then
+					if CPU_EN = '1' and MC.RAMADDR /= "000" then
+						if MC.RAMLD /= "00" then
+							RAM_WORD <= MC.RAMLD(1);
+							RAM_BYTES <= '0';
+							RAM_LOAD_DATA <= (others => '0');
+							RAMST <= RAMST_LOAD;
+						elsif MC.RAMST(1 downto 0) /= "00" then
+							if MC.RAMST(2) = '0' then
+								RAMDR <= R(to_integer(SREG));
+							else
+								RAMDR <= R(to_integer(OP_N));
+							end if;
+							RAM_WORD <= MC.RAMST(1);
+							RAM_BYTES <= '0';
+							RAMST <= RAMST_SAVE;
+						end if;
+					elsif IN_CACHE = '0' and CODE_IN_RAM = '1' and RAMST = RAMST_IDLE then
+						RAMST <= RAMST_FETCH;
+					elsif IN_CACHE = '1' and VAL_CACHE = '0' and CODE_IN_RAM = '1' and RAMST = RAMST_IDLE then
+						RAMST <= RAMST_CACHE;
+					elsif CPU_EN = '1' and OP.OP = OP_PLOT and (PC0_OFFS_HIT = '0' or PC0_FULL = '1') and PC0_EMPTY = '0' then
+						PCF_RW <= PC0_FULL;
+						RAMST <= RAMST_PCF;
+					elsif CPU_EN = '1' and OP.OP = OP_RPIX and STATE = 0 then
+						if PC0_EMPTY = '0' then
+							PCF_RW <= PC0_FULL;
+							RAMST <= RAMST_PCF;
+						else
+							RAMST <= RAMST_RPIX;
+						end if;
+					end if;
+				end if;
+
+				if RAMST /= RAMST_IDLE and RAN = '1' then
+					RAM_ACCESS_CNT <= RAM_ACCESS_CNT - 1;
+					if RAM_ACCESS_CNT = 0 then
+						if RAMST = RAMST_CACHE or RAMST = RAMST_LOAD or RAMST = RAMST_SAVE then
+							RAM_ACCESS_CNT <= RAM_CYCLES - 1;
+						else
+							RAM_ACCESS_CNT <= RAM_CYCLES;
+						end if;
+					end if;
+				else
+					RAM_ACCESS_CNT <= RAM_CYCLES;
+				end if;
+			end if;
+		end if;
+	end process; 
 
 	--CPU Opcode logic
 	OPS <= OP_TBL(to_integer(unsigned(OPCODE)));
@@ -654,10 +835,6 @@ begin
 				else
 					STATE <= 0;
 				end if;
-			end if;
-
-			if SS_WR = '1' and ADDR(7 downto 0) = x"11" then
-				STATE <= to_integer(unsigned(DI));
 			end if;
 		end if;
 	end process; 
@@ -696,18 +873,6 @@ begin
 					FLAG_ALT2 <= '0';
 					DREG <= (others => '0');
 					SREG <= (others => '0');
-				end if;
-			end if;
-
-			if SS_WR = '1' then
-				if ADDR(7 downto 0) = x"12" then
-					DREG <= unsigned(DI(3 downto 0));
-					SREG <= unsigned(DI(7 downto 4));
-				end if;
-				if ADDR(7 downto 0) = x"13" then
-					FLAG_B <= DI(0);
-					FLAG_ALT1 <= DI(1);
-					FLAG_ALT2 <= DI(2);
 				end if;
 			end if;
 		end if;
@@ -838,13 +1003,6 @@ begin
 				FLAG_CY <= DI(2);
 				FLAG_OV <= DI(4);
 			end if;
-
-			if SS_WR = '1' and ADDR(7 downto 0) = x"13" then
-				FLAG_Z <= DI(3);
-				FLAG_S <= DI(4);
-				FLAG_CY <= DI(5);
-				FLAG_OV <= DI(6);
-			end if;
 		end if;
 	end process; 
 	
@@ -872,7 +1030,7 @@ begin
 					R(15) <= std_logic_vector(unsigned(R(15)) + 1);
 				end if;
 				
-				if OP.OP = OP_LMULT and MC.DREG(1 downto 0) /= "00" and MC.FSET = '1' then
+				if OP.OP = OP_LMULT then
 					R(4) <= MULR;
 				end if;
 				
@@ -918,7 +1076,7 @@ begin
 						case OP.OP is
 							when OP_LDB | OP_LDW | OP_LM | OP_LMS => 
 								if MC.RAMLD /= "00" then
-									R(to_integer(DST_REG)) <= RAM_LOAD_BUF;
+									R(to_integer(DST_REG)) <= RAM_LOAD_DATA;
 								end if;
 							when OP_GETB  => 
 								R(to_integer(DST_REG)) <= x"00" & ROMDR;
@@ -945,336 +1103,20 @@ begin
 					end if;
 				end if;
 			end if;
-
-			if SS_WR = '1' then
-				case ADDR(7 downto 0) is
-					when x"14" => REG_LSB <= DI;
-					when x"15" => RAMBR <= DI;
-					when x"16" => ROMBR <= DI;
-					when others => null;
-				end case;
-			end if;
 		end if;
 	end process; 
 	
 	
-	process(CLK, RST_N)
-	begin
-		if RST_N = '0' then
-			MULT_ACCESS_CNT <= "010";
-			MULT_WAIT <= '0';
-			MULTST <= MULTST_IDLE;
-		elsif falling_edge(CLK) then
-			if EN = '1' then
-				if CPU_EN = '1' then
-					if (OP.OP = OP_MULT or OP.OP = OP_UMULT) and MC.LAST_CYCLE = '1' then
-						MULT_WAIT <= not (MS0 or TURBO);
-						LMULT <= '0';
-					elsif (OP.OP = OP_FMULT or OP.OP = OP_LMULT) and MC.LAST_CYCLE = '1' then
-						MULT_WAIT <= not (TURBO);
-						LMULT <= '1';
-					end if;
-				end if;
-				
-				if MULTST = MULTST_EXEC and MULT_ACCESS_CNT = 0 then
-					MULT_WAIT <= '0';
-				end if;
-			end if;
-
-			if SS_WR = '1' and ADDR(7 downto 0) = x"17" then
-				MULT_WAIT <= DI(3);
-				LMULT <= DI(4);
-			end if;
-		elsif rising_edge(CLK) then
-			if EN = '1' then
-				case MULTST is
-					when MULTST_IDLE =>
-						if MULT_WAIT = '1' then
-							if LMULT = '1' then
-								if MS0 = '0' then
-									MULT_ACCESS_CNT <= "100";
-								else
-									MULT_ACCESS_CNT <= "000";
-								end if;
-							else
-								MULT_ACCESS_CNT <= "000";
-							end if;
-							MULTST <= MULTST_EXEC;
-						end if;
-					
-					when MULTST_EXEC =>
-						MULT_ACCESS_CNT <= MULT_ACCESS_CNT - 1;
-						if MULT_ACCESS_CNT = 0 then
-							MULTST <= MULTST_IDLE;
-						end if;
-						
-					when others => null;	
-				end case;
-			end if;
-
-			if SS_WR = '1' and ADDR(7 downto 0) = x"17" then
-				MULT_ACCESS_CNT <= unsigned(DI(2 downto 0));
-				MULTST <= DI(5);
-			end if;
-		end if;
-	end process; 
-	
-	--Memory buses
-	--ROM
-	R14_CHANGE <= '1' when DST_REG = 14 and (MC.DREG(1) = '1' or MC.DREG(0) = '1') and MC.LAST_CYCLE = '1' else '0';
-	process(CLK, RST_N)
-	variable ROM_CYCLES : unsigned(2 downto 0);
-	begin
-		if RST_N = '0' then
-			ROMDR <= (others => '0');
-			ROM_ACCESS_CNT <= "010";
-			ROM_LOAD_PEND <= '0';
-			ROM_LOAD_WAIT <= '0';
-			ROM_FETCH_PEND <= '0';
-			ROM_FETCH_WAIT <= '0';
-			ROM_CACHE_WAIT <= '0';
-			ROM_LOAD_START <= '0';
-			ROM_FETCH_START <= '0';
-			ROM_LOAD_END <= '0';
-			ROM_FETCH_EN <= '0';
-			ROM_CACHE_EN <= '0';
-			R14_CHANGE_LATCH <= '0';
-			ROMST <= ROMST_IDLE;
-			FLAG_R <= '0';
-		elsif falling_edge(CLK) then
-			if GO = '1' then
-				ROM_FETCH_WAIT <= '0';
-				ROM_CACHE_WAIT <= '0';
-				if IN_CACHE = '0' and CODE_IN_ROM = '1' then
-					ROM_FETCH_PEND <= '1';
-					ROM_FETCH_WAIT <= '1';
-				elsif IN_CACHE = '1' and VAL_CACHE = '0' and CODE_IN_ROM = '1' then
-					ROM_CACHE_WAIT <= '1';
-				end if;
-				ROM_FETCH_EN <= '0';
-				ROM_CACHE_EN <= '0';
-			end if;
-			
-			if EN = '1' then
-				if ROM_LOAD_START = '1' then
-					ROM_LOAD_PEND <= '0';
-				end if;
-				if CPU_EN = '1' and R14_CHANGE_LATCH = '1' then
-					ROM_LOAD_PEND <= '1';
-				end if;
-				
-				if ROM_LOAD_END = '1' and ROM_LOAD_WAIT = '1' then
-					ROM_LOAD_WAIT <= '0';
-				end if;
-				if (R14_CHANGE = '1' or MC.ROMWAIT = '1') and (R14_CHANGE_LATCH = '1' or ROMST = ROMST_LOAD) and ROM_LOAD_WAIT = '0' then--
-					ROM_LOAD_WAIT <= '1';
-				end if;
-				
-				if CPU_EN = '1' then
-					ROM_FETCH_EN <= '0';
-				end if;
-				if ROM_FETCH_START = '1' then
-					ROM_FETCH_PEND <= '0';
-				end if;
-				if ROM_FETCH_END = '1' then
-					ROM_FETCH_WAIT <= '0';
-					ROM_FETCH_EN <= '1';
-				end if;
-				if CPU_EN = '1' and MC.INCPC = '1' and IN_CACHE = '0' and CODE_IN_ROM = '1' then
-					ROM_FETCH_PEND <= '1';
-					ROM_FETCH_WAIT <= '1';
-				end if;
-				
-				ROM_CACHE_EN <= '0';		
-				if ROMST = ROMST_CACHE_DONE then
-					ROM_CACHE_EN <= '1';
-				end if;
-				if ROMST = ROMST_CACHE_END then
-					ROM_CACHE_WAIT <= '0';
-				end if;
-				if IN_CACHE = '1' and VAL_CACHE = '0' and CODE_IN_ROM = '1' then
-					ROM_CACHE_WAIT <= '1';
-				end if;
-			end if;
-
-			if SS_WR = '1' then
-				case ADDR(7 downto 0) is
-					when x"1A" =>
-						ROM_LOAD_PEND <= DI(4);
-						ROM_LOAD_WAIT <= DI(5);
-					when x"1B" =>
-						ROM_CACHE_WAIT <= DI(0);
-						ROM_CACHE_EN <= DI(1);
-						ROM_FETCH_PEND <= DI(4);
-						ROM_FETCH_WAIT <= DI(5);
-						ROM_FETCH_EN <= DI(7);
-					when others => null;
-				end case;
-			end if;
-		elsif rising_edge(CLK) then
-			if GO = '1' then
-				ROM_LOAD_START <= '0';
-				ROM_FETCH_START <= '0';
-				ROM_LOAD_END <= '0';
-				ROM_FETCH_END <= '0';
-			end if;
-			
---			GSU_ROM_RD <= '0';
-			if EN = '1' then
-				if TURBO = '1' then
-					ROM_CYCLES := "010";
-				elsif SPEED = '0' then
-					ROM_CYCLES := "001";
-				else 
-					ROM_CYCLES := "011";
-				end if;
-				
-				R14_CHANGE_LATCH <= '0';
-				if CPU_EN = '1' and R14_CHANGE = '1' then
-					R14_CHANGE_LATCH <= '1';
-				end if;
-				
-				ROM_LOAD_START <= '0';
-				ROM_FETCH_START <= '0';
-				ROM_LOAD_END <= '0';
-				ROM_FETCH_END <= '0';
-				case ROMST is
-					when ROMST_IDLE =>
-						if ROM_LOAD_PEND = '1' then
-							FLAG_R <= '1';
-							ROM_ACCESS_CNT <= ROM_CYCLES + 2;
-							ROM_LOAD_START <= '1';
-							ROMST <= ROMST_LOAD;
---							GSU_ROM_RD <= '1';
-						elsif ROM_FETCH_PEND = '1' then
-							ROM_ACCESS_CNT <= ROM_CYCLES - 1;
-							ROM_FETCH_START <= '1';
-							ROMST <= ROMST_FETCH;
---							GSU_ROM_RD <= '1';
-						elsif IN_CACHE = '1' and VAL_CACHE = '0' and CODE_IN_ROM = '1' then
-							ROM_ACCESS_CNT <= ROM_CYCLES;
-							ROMST <= ROMST_CACHE;
---							GSU_ROM_RD <= '1';
-						end if;
-					
-					when ROMST_LOAD =>
-						if RON = '1' then
-							ROM_ACCESS_CNT <= ROM_ACCESS_CNT - 1;
-							if ROM_ACCESS_CNT = 0 then
-								ROMDR <= ROM_DI;
-								FLAG_R <= '0';
-								--ROM_LOAD_END := '1';
-								ROM_LOAD_END <= '1';
-								ROMST <= ROMST_IDLE;
-							end if;
-						else
-							ROM_ACCESS_CNT <= ROM_CYCLES + 1;
-						end if;
-					
-					when ROMST_FETCH =>
-						if RON = '1' then
-							ROM_ACCESS_CNT <= ROM_ACCESS_CNT - 1;
-							if ROM_ACCESS_CNT = 0 then
-								ROM_BUF <= ROM_DI;
-								ROM_FETCH_END <= '1';
-								ROMST <= ROMST_FETCH_DONE;
-							end if;
-						else
-							ROM_ACCESS_CNT <= ROM_CYCLES;
-						end if;
-					
-					when ROMST_FETCH_DONE =>
-						ROMST <= ROMST_IDLE;
-					
-					when ROMST_CACHE =>
-						if RON = '1' then
-							ROM_ACCESS_CNT <= ROM_ACCESS_CNT - 1;
-							if ROM_ACCESS_CNT = 0 then
-								ROM_BUF <= ROM_DI;
-								ROMST <= ROMST_CACHE_DONE;
-							end if;
-						else
-							ROM_ACCESS_CNT <= ROM_CYCLES;
-						end if;
-					
-					when ROMST_CACHE_DONE =>
-						if CACHE_DST_ADDR(3 downto 0) /= 15 then
---							GSU_ROM_RD <= '1';
-							ROM_ACCESS_CNT <= ROM_CYCLES;
-							ROMST <= ROMST_CACHE;
-						else
-							ROMST <= ROMST_CACHE_END;
-						end if;
-												
-					when ROMST_CACHE_END =>
-						ROMST <= ROMST_IDLE;
-						
-					when others => null;	
-				end case;
-			end if;
-
-			if SS_WR = '1' then
-				case ADDR(7 downto 0) is
-					when x"18" => ROMDR <= DI;
-					when x"19" => ROM_BUF <= DI;
-					when x"1A" =>
-						ROM_ACCESS_CNT <= unsigned(DI(2 downto 0));
-						ROM_FETCH_END <= DI(3);
-						ROM_LOAD_START <= DI(6);
-						ROM_LOAD_END <= DI(7);
-					when x"1B" =>
-						R14_CHANGE_LATCH <= DI(2);
-						FLAG_R <= DI(3);
-						ROM_FETCH_START <= DI(6);
-					when x"1C" =>
-						ROMST <= DI(2 downto 0);
-					when others => null;
-				end case;
-			end if;
-		end if;
-	end process; 
-	
-	process(CLK, RST_N)
-	begin
-		if RST_N = '0' then
-			ROM_RD_N <= '1';
-			ROM_RD_CNT <= (others => '0');
-		elsif rising_edge(CLK) then
-			ROM_RD_N <= '1';
-			if GSU_ROM_ACCESS = '0' then
-				if SYSCLKR_CE = '1' or SYSCLKF_CE = '1' then
-					ROM_RD_N <= '0';
-					ROM_RD_CNT <= (others => '0');
-				end if;
-			else
-				ROM_RD_CNT <= ROM_RD_CNT + 1;
-				if ROM_RD_CNT = 1 then
-					ROM_RD_CNT <= (others => '0');
-					ROM_RD_N <= '0';
-				end if;
-			end if;
-			
-			if SYSCLKR_CE = '1' then
-				SNES_ROM_ADDR <= ADDR;
-			end if;
-		end if;
-	end process;
-	
-	INT_ROM_A <= SNES_ROM_ADDR when GSU_ROM_ACCESS = '0' else 
-					 CACHE_SRC_ADDR when ROMST = ROMST_CACHE else 
-					 ROMBR & R(14) when ROMST = ROMST_LOAD else 
-					 PBR & R(15);
-
-				
-	ROM_A <= INT_ROM_A(20 downto 0) when INT_ROM_A(22) = '1' else INT_ROM_A(21 downto 16) & INT_ROM_A(14 downto 0);
-	
-	--RAM
 	--Pixel cashe
 	PC_X <= unsigned(R(1)(7 downto 0));
 	PC_Y <= unsigned(R(2)(7 downto 0));
-
+	
+	PC0 <= 0 when PCN = '0' else 1;
+	PC1 <= 0 when PCN = '1' else 1;
 	PC0_FULL <= '1' when PIX_CACHE(0).VALID = x"FF" else '0';
+	PC1_FULL <= '1' when PIX_CACHE(1).VALID = x"FF" else '0';
 	PC0_EMPTY <= '1' when PIX_CACHE(0).VALID = x"00" else '0';
+	PC1_EMPTY <= '1' when PIX_CACHE(1).VALID = x"00" else '0';
 	PC0_OFFS_HIT <= '1' when PIX_CACHE(0).OFFSET = PC_Y & PC_X(7 downto 3) else '0';
 	
 	process(POR_TRANS, SCMR_MD, POR_FH, COLR )
@@ -1282,226 +1124,37 @@ begin
 		PLOT_EXEC <= '0';
 		if POR_TRANS = '1' then
 			PLOT_EXEC <= '1';
-		elsif SCMR_MD(1) = '0' then
-			if (COLR(3 downto 0) /= "0000" and SCMR_MD(0) = '1') or (COLR(1 downto 0) /= "00" and SCMR_MD(0) = '0') then
+		elsif SCMR_MD /= "11" or POR_FH = '1' then
+			if COLR(3 downto 0) /= "0000" then
 				PLOT_EXEC <= '1';
 			end if;
 		else
-			if (COLR(7 downto 0) /= "00000000" and POR_FH = '0') or (COLR(3 downto 0) /= "0000" and POR_FH = '1') then
+			if COLR /= "00000000" then
 				PLOT_EXEC <= '1';
 			end if;
 		end if;
 	end process; 
 			
 	process(CLK, RST_N)
-		variable RAM_LOAD_WORD : std_logic;
-		variable RAM_STORE_WORD : std_logic;
 		variable NEW_COLOR : std_logic_vector(7 downto 0);
 		variable COL_DITH : std_logic_vector(7 downto 0);
-		variable RAM_CYCLES : unsigned(2 downto 0);
 	begin
 		if RST_N = '0' then
-			RAMADDR <= (others => '0');
-			RAMDR <= (others => '0');
-			RAM_WORD <= '0';
-			RAM_BYTES <= '0';
-			RAM_LOAD_PEND <= '0';
-			RAM_SAVE_PEND <= '0';
-			RAM_PCF_PEND <= '0';
-			RAM_RPIX_PEND <= '0';
-			RAM_FETCH_PEND <= '0';
-			RAM_LOAD_WAIT <= '0';
-			RAM_SAVE_WAIT <= '0';
-			RAM_PCF_WAIT <= '0';
-			RAM_FETCH_WAIT <= '0';
-			RAM_CACHE_WAIT <= '0';
-			RAM_SAVE_START <= '0';
-			RAM_LOAD_START <= '0';
-			RAM_PCF_START <= '0';
-			RAM_RPIX_START <= '0';
-			RAM_FETCH_START <= '0';
-			RAM_SAVE_END <= '0';
-			RAM_LOAD_END <= '0';
-			RAM_PCF_END <= '0';
-			RAM_PCF_EXEC <= '0';
-			RAM_RPIX_EXEC <= '0';
-			RAM_ACCESS_CNT <= "001";
-			RAMST <= RAMST_IDLE;
-			PCF_RW <= '0';
-
 			POR_TRANS <= '0';
 			POR_DITH <= '0';
 			POR_HN <= '0';
 			POR_FH <= '0';
 			POR_OBJ <= '0';
 			COLR <= (others => '0');
-			PIX_CACHE <= (others => ((others =>(others => '0')),(others => '0'),(others => '0')));
+			PIX_CACHE <= (others => ((others =>(others => '0')),(others => '0'),(others => '0'),(others => '0')));
+			PCN <= '0';
 			PCF_RD_DATA <= (others => '0');
 			RPIX_DATA <= (others => '0');
 			BPP_CNT <= (others => '0');
-		elsif falling_edge(CLK) then
-			if GO = '1' then
-				RAM_FETCH_WAIT <= '0';
-				RAM_CACHE_WAIT <= '0';
-				if IN_CACHE = '0' and CODE_IN_RAM = '1' then
-					RAM_FETCH_PEND <= '1';
-					RAM_FETCH_WAIT <= '1';
-				elsif IN_CACHE = '1' and VAL_CACHE = '0' and CODE_IN_RAM = '1' then
-					RAM_CACHE_WAIT <= '1';
-				end if;
-				RAM_FETCH_EN <= '0';
-				RAM_CACHE_EN <= '0';
-			end if;
-			if EN = '1' then
-				if RAM_SAVE_START = '1' then
-					RAM_SAVE_PEND <= '0';
-				elsif RAM_LOAD_START = '1' then
-					RAM_LOAD_PEND <= '0';
-				elsif RAM_PCF_START = '1' then
-					RAM_PCF_PEND <= '0';
-				elsif RAM_RPIX_START = '1' then
-					RAM_RPIX_PEND <= '0';
-				end if;
-				
-				if CPU_EN = '1' then
-					if (OP.OP = OP_LDB or OP.OP = OP_LDW or OP.OP = OP_LM or OP.OP = OP_LMS) and MC.LAST_CYCLE = '1' then
-						RAM_LOAD_PEND <= '1';
-						RAM_LOAD_WAIT <= '1';
-					elsif (OP.OP = OP_STB or OP.OP = OP_STW or OP.OP = OP_SM or OP.OP = OP_SMS or OP.OP = OP_SBK) and MC.LAST_CYCLE = '1' then
-						RAM_SAVE_PEND <= '1';
-					elsif OP.OP = OP_RPIX and MC.LAST_CYCLE = '1' then
-						RAM_PCF_FULL <= '0';
-						RAM_PCF_PEND <= '1';
-						RAM_PCF_WAIT <= '1';
-						RAM_RPIX_PEND <= '1';
-					end if;
-				end if;
-				
-				if MC.RAMWAIT = '1' and (RAM_SAVE_PEND = '1' or RAMST = RAMST_SAVE) and RAM_SAVE_WAIT = '0' then
-					RAM_SAVE_WAIT <= '1';
-				elsif (OP.OP = OP_STOP or (OP.OP = OP_RPIX and STATE = 0)) and (RAM_PCF_PEND = '1' or RAM_PCF_EXEC = '1') and RAM_PCF_WAIT = '0' then
-					RAM_PCF_WAIT <= '1';
-				end if;
-				
-				if (PC0_OFFS_HIT = '0' and PC0_EMPTY = '0') or PC0_FULL = '1' then
-					RAM_PCF_PEND <= '1';
-					if RAM_PCF_EXEC = '1' then
-						RAM_PCF_WAIT <= '1';
-					end if;
-					RAM_PCF_FULL <= PC0_FULL;
-				end if;
-				
-				if RAM_LOAD_END = '1' then
-					RAM_LOAD_WAIT <= '0';
-				end if;
-				if RAM_SAVE_END = '1' then
-					RAM_SAVE_WAIT <= '0';
-				end if;
-				if RAM_PCF_END = '1' then
-					RAM_PCF_WAIT <= '0';
-				end if;
-				
-				if CPU_EN = '1' then
-					RAM_FETCH_EN <= '0';
-				end if;
-				if RAM_FETCH_START = '1' then
-					RAM_FETCH_PEND <= '0';
-				end if;
-				if RAM_FETCH_END = '1' then
-					RAM_FETCH_WAIT <= '0';
-					RAM_FETCH_EN <= '1';
-				end if;
-				if CPU_EN = '1' and MC.INCPC = '1' and IN_CACHE = '0' and CODE_IN_RAM = '1' then
-					RAM_FETCH_PEND <= '1';
-					RAM_FETCH_WAIT <= '1';
-				end if;
-				
-				RAM_CACHE_EN <= '0';		
-				if RAM_CACHE_END = '1' then
-					RAM_CACHE_EN <= '1';
-				elsif RAMST = RAMST_CACHE_END then
-					RAM_CACHE_WAIT <= '0';
-				end if;
-				if IN_CACHE = '1' and VAL_CACHE = '0' and CODE_IN_RAM = '1' then
-					RAM_CACHE_WAIT <= '1';
-				end if;
-			end if;
-
-			if SS_WR = '1' then
-				case ADDR(7 downto 0) is
-					when x"24" =>
-						RAM_LOAD_PEND <= DI(4);
-						RAM_LOAD_WAIT <= DI(5);
-					when x"25" =>
-						RAM_FETCH_EN <= DI(0);
-						RAM_CACHE_WAIT <= DI(1);
-						RAM_CACHE_EN <= DI(2);
-						RAM_FETCH_PEND <= DI(4);
-						RAM_FETCH_WAIT <= DI(5);
-					when x"26" =>
-						RAM_PCF_FULL <= DI(1);
-						RAM_PCF_PEND <= DI(4);
-						RAM_PCF_WAIT <= DI(5);
-					when x"27" =>
-						RAM_SAVE_PEND <= DI(0);
-						RAM_SAVE_WAIT <= DI(1);
-						RAM_RPIX_PEND <= DI(4);
-					when others => null;
-				end case;
-			end if;
 		elsif rising_edge(CLK) then
-			SS_RAM_LOAD_WORD <= RAM_LOAD_WORD; -- for save state
-			SS_RAM_STORE_WORD <= RAM_STORE_WORD;
-
-			if GO = '1' then
-				RAM_SAVE_START <= '0';
-				RAM_LOAD_START <= '0';
-				RAM_PCF_START <= '0';
-				RAM_RPIX_START <= '0';
-				RAM_FETCH_START <= '0';
-				RAM_SAVE_END <= '0';
-				RAM_LOAD_END <= '0';
-				RAM_PCF_END <= '0';
-				RAM_FETCH_END <= '0';
-				RAM_CACHE_END <= '0';
-			end if;
-			
 			if EN = '1' then
-				if TURBO = '1' then
-					RAM_CYCLES := "001";
-				elsif SPEED = '0' then
-					RAM_CYCLES := "001";
-				else 
-					RAM_CYCLES := "011";
-				end if;
-				
-				if ((PC0_OFFS_HIT = '0' and PC0_EMPTY = '0') or PC0_FULL = '1') and RAM_PCF_WAIT = '0' then
-					PIX_CACHE(1) <= PIX_CACHE(0);
-					PIX_CACHE(0).OFFSET <= PC_Y & PC_X(7 downto 3);
-					PIX_CACHE(0).VALID <= (others => '0');
-				end if;
-				
 				if CPU_EN = '1' then
-					if MC.RAMADDR /= "000" then
-						if MC.RAMADDR = "001" then
-							RAMADDR(7 downto 0) <= OPDATA;
-						elsif MC.RAMADDR = "010" then
-							RAMADDR(15 downto 8) <= OPDATA;
-						elsif MC.RAMADDR = "011" then
-							RAMADDR <= R(to_integer(OP_N));
-						elsif MC.RAMADDR = "100" then
-							RAMADDR <= "0000000" & OPDATA & "0";
-						end if;
-						if MC.RAMST(1 downto 0) /= "00" then
-							if MC.RAMST(2) = '0' then
-								RAMDR <= R(to_integer(SREG));
-							else
-								RAMDR <= R(to_integer(OP_N));
-							end if;
-						end if;
-						RAM_LOAD_WORD := MC.RAMLD(1);
-						RAM_STORE_WORD := MC.RAMST(1);
-					elsif OP.OP = OP_CMODE then
+					if OP.OP = OP_CMODE then
 						POR_TRANS <= R(to_integer(SREG))(0);
 						POR_DITH <= R(to_integer(SREG))(1);
 						POR_HN <= R(to_integer(SREG))(2);
@@ -1532,386 +1185,54 @@ begin
 							COL_DITH := COLR;
 						end if;
 						
+						if PC0_OFFS_HIT = '0' or PC0_FULL = '1' then
+							PIX_CACHE(1).DATA <= PIX_CACHE(0).DATA;
+							PIX_CACHE(1).OFFSET <= PIX_CACHE(0).OFFSET;
+							PIX_CACHE(1).PLOTTED <= PIX_CACHE(0).PLOTTED;
+							PIX_CACHE(1).VALID <= PIX_CACHE(0).VALID;
+							PIX_CACHE(0).PLOTTED <= (others => '0');
+							PIX_CACHE(0).VALID <= (others => '0');
+						end if;
 						PIX_CACHE(0).DATA(to_integer(not PC_X(2 downto 0))) <= COL_DITH;
 						PIX_CACHE(0).OFFSET <= PC_Y & PC_X(7 downto 3);
+						PIX_CACHE(0).PLOTTED(to_integer(not PC_X(2 downto 0))) <= PLOT_EXEC;
 						PIX_CACHE(0).VALID(to_integer(not PC_X(2 downto 0))) <= PLOT_EXEC;
 					elsif OP.OP = OP_RPIX and STATE = 0 then
-						PIX_CACHE(1) <= PIX_CACHE(0);
-						PIX_CACHE(0).OFFSET <= PC_Y & PC_X(7 downto 3);
+						PIX_CACHE(1).DATA <= PIX_CACHE(0).DATA;
+						PIX_CACHE(1).OFFSET <= PIX_CACHE(0).OFFSET;
+						PIX_CACHE(1).PLOTTED <= PIX_CACHE(0).PLOTTED;
+						PIX_CACHE(1).VALID <= PIX_CACHE(0).VALID;
+						PIX_CACHE(0).PLOTTED <= (others => '0');
 						PIX_CACHE(0).VALID <= (others => '0');
 					end if;
 				end if;
 				
-				RAM_SAVE_START <= '0';
-				RAM_LOAD_START <= '0';
-				RAM_PCF_START <= '0';
-				RAM_RPIX_START <= '0';
-				RAM_FETCH_START <= '0';
-				RAM_SAVE_END <= '0';
-				RAM_LOAD_END <= '0';
-				RAM_PCF_END <= '0';
-				RAM_FETCH_END <= '0';
-				RAM_CACHE_END <= '0';
-				case RAMST is
-					when RAMST_IDLE =>
-						if RAM_SAVE_PEND = '1' then
-							RAM_WORD <= RAM_STORE_WORD;
-							RAM_BYTES <= '0';
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-							RAM_SAVE_START <= '1';
-							RAMST <= RAMST_SAVE;
-						elsif RAM_LOAD_PEND = '1' then
-							RAM_WORD <= RAM_LOAD_WORD;
-							RAM_BYTES <= '0';
-							RAM_LOAD_BUF <= (others => '0');
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-							RAM_LOAD_START <= '1';
-							RAMST <= RAMST_LOAD;
-						elsif IN_CACHE = '1' and VAL_CACHE = '0' and CODE_IN_RAM = '1' then
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-							RAMST <= RAMST_CACHE;
-						elsif RAM_PCF_EXEC = '1' then
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-							RAMST <= RAMST_PCF;
-						elsif RAM_RPIX_EXEC = '1' then
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-							RAMST <= RAMST_RPIX;
-						elsif RAM_PCF_PEND = '1' then
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-							RAM_PCF_START <= '1';
-							RAM_PCF_EXEC <= '1';
-							PCF_RW <= RAM_PCF_FULL;
-							PCF_WO <= RAM_PCF_FULL;
-							RPIX_DATA <= (others => '0');
-							RAMST <= RAMST_PCF;
-						elsif RAM_RPIX_PEND = '1' then
-							RAM_RPIX_START <= '1';
-							RAM_RPIX_EXEC <= '1';
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-							RAMST <= RAMST_RPIX;
-						elsif RAM_FETCH_PEND = '1' then
-							RAM_ACCESS_CNT <= RAM_CYCLES - 1;
-							RAM_FETCH_START <= '1';
-							RAMST <= RAMST_FETCH;
+				if RAMST = RAMST_PCF and RAM_LAST_CYCLE = '1' and RAN = '1' then
+					if PCF_RW = '0' then
+						PCF_RD_DATA <= RAM_DI;
+					else
+						BPP_CNT <= BPP_CNT + 1;
+						if BPP_CNT = GetLastBPP(SCMR_MD) then
+							BPP_CNT <= (others => '0');
+							PIX_CACHE(1).PLOTTED <= (others => '0');
+							PIX_CACHE(1).VALID <= (others => '0');
 						end if;
-						
-					when RAMST_LOAD =>
-						if RAN = '1' then
-							RAM_ACCESS_CNT <= RAM_ACCESS_CNT - 1;
-							if RAM_ACCESS_CNT = 0 then
-								RAM_ACCESS_CNT <= RAM_CYCLES;
-								RAM_BYTES <= '1';
-								if RAM_BYTES = '0' then
-									RAM_LOAD_BUF(7 downto 0) <= RAM_DI;
-								else
-									RAM_LOAD_BUF(15 downto 8) <= RAM_DI;
-								end if;
-								if RAM_BYTES = RAM_WORD then
-									RAM_LOAD_END <= '1';
-									RAMST <= RAMST_IDLE;
-								end if;
-							end if;
-						else
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-						end if;
-						
-					when RAMST_SAVE =>
-						if RAN = '1' then
-							RAM_ACCESS_CNT <= RAM_ACCESS_CNT - 1;
-							if RAM_ACCESS_CNT = 0  then
-								RAM_ACCESS_CNT <= RAM_CYCLES;
-								RAM_BYTES <= '1';
-								if RAM_BYTES = RAM_WORD then
-									RAM_SAVE_END <= '1';
-									RAMST <= RAMST_IDLE;
-								end if;
-							end if;
-						else
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-						end if;
-							
-					when RAMST_PCF =>
-						if RAN = '1' then
-							RAM_ACCESS_CNT <= RAM_ACCESS_CNT - 1;
-							if RAM_ACCESS_CNT = 0 then
-								PCF_RW <= (not PCF_RW) or PCF_WO;
-								RAMST <= RAMST_IDLE;
-								if PCF_RW = '0' and PCF_WO = '0' then
-									PCF_RD_DATA <= RAM_DI;
-								else
-									BPP_CNT <= BPP_CNT + 1;
-									if BPP_CNT = GetLastBPP(SCMR_MD) then
-										BPP_CNT <= (others => '0');
-										PIX_CACHE(1).VALID <= (others => '0');
-										RAMST <= RAMST_PCF_END;
-									end if;
-								end if;
-							end if;
-						else
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-						end if;
-					
-					when RAMST_PCF_END =>
-						RAM_PCF_EXEC <= '0';
-						if RAM_RPIX_PEND = '0' then
-							RAM_PCF_END <= '1';
-						end if;
-						RAMST <= RAMST_IDLE;
-						
-					when RAMST_RPIX =>
-						if RAN = '1' then
-							RAM_ACCESS_CNT <= RAM_ACCESS_CNT - 1;
-							if RAM_ACCESS_CNT = 0 then
-								RPIX_DATA(to_integer(BPP_CNT)) <= RAM_DI(to_integer(not PC_X(2 downto 0)));
-								BPP_CNT <= BPP_CNT + 1;
-								if BPP_CNT = GetLastBPP(SCMR_MD) then
-									BPP_CNT <= (others => '0');
-									RAM_RPIX_EXEC <= '0';
-									RAM_PCF_END <= '1';
-								end if;
-								RAMST <= RAMST_IDLE;
-							end if;
-						else
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-						end if;
-						
-					when RAMST_FETCH =>
-						if RAN = '1' then
-							RAM_ACCESS_CNT <= RAM_ACCESS_CNT - 1;
-							if RAM_ACCESS_CNT = 0 then
-								RAM_BUF <= RAM_DI;
-								RAM_FETCH_END <= '1';
-								RAMST <= RAMST_FETCH_DONE;
-							end if;
-						else
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-						end if;
-					
-					when RAMST_FETCH_DONE =>
-						RAMST <= RAMST_IDLE;
-												
-					when RAMST_CACHE =>
-						if RAN = '1' then
-							RAM_ACCESS_CNT <= RAM_ACCESS_CNT - 1;
-							if RAM_ACCESS_CNT = 0 then
-								RAM_BUF <= RAM_DI;
-								RAM_CACHE_END <= '1';
-								RAMST <= RAMST_CACHE_DONE;
-							end if;
-						else
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-						end if;
-					
-					when RAMST_CACHE_DONE =>
-						if CACHE_DST_ADDR(3 downto 0) /= 15 then
-							RAM_ACCESS_CNT <= RAM_CYCLES;
-							RAMST <= RAMST_CACHE;
-						else
-							RAMST <= RAMST_CACHE_END;
-						end if;
-												
-					when RAMST_CACHE_END =>
-						RAMST <= RAMST_IDLE;
-					
-					when others => null;	
-				end case;
-			end if;
-
-			if SS_WR = '1' then
-				case ADDR(7 downto 0) is
-					when x"1D" => RAMADDR(7 downto 0) <= DI;
-					when x"1E" => RAMADDR(15 downto 8) <= DI;
-					when x"1F" => RAMDR(7 downto 0) <= DI;
-					when x"20" => RAMDR(15 downto 8) <= DI;
-					when x"21" => RAM_BUF <= DI;
-					when x"22" => RAM_LOAD_BUF(7 downto 0) <= DI;
-					when x"23" => RAM_LOAD_BUF(15 downto 8) <= DI;
-					when x"24" =>
-						RAM_ACCESS_CNT <= unsigned(DI(2 downto 0));
-						RAM_LOAD_START <= DI(6);
-						RAM_LOAD_END <= DI(7);
-					when x"25" =>
-						RAM_CACHE_END <= DI(3);
-						RAM_FETCH_START <= DI(6);
-						RAM_FETCH_END <= DI(7);
-					when x"26" =>
-						RAM_PCF_END <= DI(0);
-						PCF_RW <= DI(2);
-						PCF_WO <= DI(3);
-						RAM_PCF_START <= DI(6);
-						RAM_PCF_EXEC <= DI(7);
-					when x"27" =>
-						RAM_SAVE_START <= DI(2);
-						RAM_SAVE_END <= DI(3);
-						RAM_RPIX_START <= DI(5);
-						RAM_RPIX_EXEC <= DI(6);
-					when x"28" =>
-						RAMST <= DI(3 downto 0);
-						RAM_WORD <= DI(4);
-						RAM_BYTES <= DI(5);
-						RAM_LOAD_WORD := DI(6);
-						RAM_STORE_WORD := DI(7);
-					when x"29" =>
-						POR_TRANS <= DI(0);
-						POR_DITH <= DI(1);
-						POR_HN <= DI(2);
-						POR_FH <= DI(3);
-						POR_OBJ <= DI(4);
-					when x"2A" => COLR <= DI;
-					when x"2B" => PIX_CACHE(0).DATA(0) <= DI;
-					when x"2C" => PIX_CACHE(0).DATA(1) <= DI;
-					when x"2D" => PIX_CACHE(0).DATA(2) <= DI;
-					when x"2E" => PIX_CACHE(0).DATA(3) <= DI;
-					when x"2F" => PIX_CACHE(0).DATA(4) <= DI;
-					when x"30" => PIX_CACHE(0).DATA(5) <= DI;
-					when x"31" => PIX_CACHE(0).DATA(6) <= DI;
-					when x"32" => PIX_CACHE(0).DATA(7) <= DI;
-					when x"33" => PIX_CACHE(0).OFFSET(7 downto 0) <= unsigned(DI);
-					when x"34" => PIX_CACHE(0).OFFSET(12 downto 8) <= unsigned(DI(4 downto 0));
-					when x"35" => PIX_CACHE(0).VALID <= DI;
-					when x"36" => PIX_CACHE(1).DATA(0) <= DI;
-					when x"37" => PIX_CACHE(1).DATA(1) <= DI;
-					when x"38" => PIX_CACHE(1).DATA(2) <= DI;
-					when x"39" => PIX_CACHE(1).DATA(3) <= DI;
-					when x"3A" => PIX_CACHE(1).DATA(4) <= DI;
-					when x"3B" => PIX_CACHE(1).DATA(5) <= DI;
-					when x"3C" => PIX_CACHE(1).DATA(6) <= DI;
-					when x"3D" => PIX_CACHE(1).DATA(7) <= DI;
-					when x"3E" => PIX_CACHE(1).OFFSET(7 downto 0) <= unsigned(DI);
-					when x"3F" => PIX_CACHE(1).OFFSET(12 downto 8) <= unsigned(DI(4 downto 0));
-					when x"40" => PIX_CACHE(1).VALID <= DI;
-					when x"41" => PCF_RD_DATA <= DI;
-					when x"42" => RPIX_DATA <= DI;
-					when x"43" => BPP_CNT <= unsigned(DI(2 downto 0));
-					when others => null;
-				end case;
+					end if;
+				elsif RAMST = RAMST_RPIX and RAM_LAST_CYCLE = '1' and RAN = '1' then
+					RPIX_DATA(to_integer(BPP_CNT)) <= RAM_DI(to_integer(not PC_X(2 downto 0)));
+					BPP_CNT <= BPP_CNT + 1;
+					if BPP_CNT = GetLastBPP(SCMR_MD) then
+						BPP_CNT <= (others => '0');
+					end if;
+				end if;
 			end if;
 		end if;
 	end process; 
 	
-	PCF_WR_DATA <= (PCF_RD_DATA and not PIX_CACHE(1).VALID) or (GetPCData(PIX_CACHE(1),BPP_CNT) and PIX_CACHE(1).VALID);
+	PCF_WR_DATA <= (PCF_RD_DATA and not PIX_CACHE(1).PLOTTED) or (GetPCData(PIX_CACHE(1),BPP_CNT) and PIX_CACHE(1).PLOTTED);
 	
 	PCF_RAM_A <= GetCharOffset(PIX_CACHE(1).OFFSET, (SCMR_HT or POR_OBJ&POR_OBJ), SCMR_MD, BPP_CNT, SCBR);
 	
 	RPIX_RAM_A <= GetCharOffset(PC_Y & PC_X(7 downto 3), (SCMR_HT or POR_OBJ&POR_OBJ), SCMR_MD, BPP_CNT, SCBR); 
 	
-	RAM_A <= SNES_RAM_A when GSU_RAM_ACCESS = '0' else 
-				CACHE_SRC_ADDR(16 downto 0) when RAMST = RAMST_CACHE else 
-				RAMBR(0) & RAMADDR(15 downto 1) & (RAMADDR(0) xor RAM_BYTES) when (RAMST = RAMST_LOAD or RAMST = RAMST_SAVE) else
-				PCF_RAM_A when RAMST = RAMST_PCF else
-				RPIX_RAM_A when RAMST = RAMST_RPIX else
-				PBR(0) & R(15);
-				
-	RAM_DO <= DI when GSU_RAM_ACCESS = '0' else 
-				 RAMDR( 7 downto 0) when RAMST = RAMST_SAVE and RAM_BYTES = '0' and GSU_RAM_ACCESS = '1' else
-				 RAMDR(15 downto 8) when RAMST = RAMST_SAVE and RAM_BYTES = '1' and GSU_RAM_ACCESS = '1' else
-				 PCF_WR_DATA when RAMST = RAMST_PCF and GSU_RAM_ACCESS = '1' else
-				 DI;
-	
-	RAM_WE_N <= '1' when ENABLE = '0' else 
-					WR_N when GSU_RAM_ACCESS = '0' else 
-					'0' when RAMST = RAMST_SAVE and RAM_ACCESS_CNT = 0 and GSU_RAM_ACCESS = '1' else
-					not PCF_RW when RAMST = RAMST_PCF and RAM_ACCESS_CNT = 0 and GSU_RAM_ACCESS = '1' else 
-					'1';
-
-	RAM_CE_N <= '0' when ENABLE = '0' else 
-					not SRAM_SEL when GSU_RAM_ACCESS = '0' else 
-					'0' when (RAMST = RAMST_LOAD or RAMST = RAMST_SAVE or RAMST = RAMST_PCF or RAMST = RAMST_RPIX or RAMST = RAMST_CACHE or RAMST = RAMST_FETCH) and GSU_RAM_ACCESS = '1' else 
-					'1';
-					
-					
-	DBG_IN_CACHE <= IN_CACHE;
-	DBG_MC <= MC;
-	DBG_GO_CNT <= GO_CNT;
-
-	-- save states
-	process( CLK )
-	begin
-		if rising_edge(CLK) then
-				case ADDR(7 downto 0) is
-					when x"00" => SS_DO <= SCMR_HT & SCMR_MD & FLAG_GO & FLAG_IRQ & GSU_MEM_ACCESS & GO;
-					when x"01" => SS_DO <= SCBR;
-					when x"02" => SS_DO <= BRAMR;
-					when x"03" => SS_DO <= PBR;
-					when x"04" => SS_DO <= "000" & CLS & IRQ_OFF & MS0 & RON & RAN;
-					when x"05" => SS_DO <= OPCODE;
-					when x"06" => SS_DO <= OPDATA;
-					when x"07" => SS_DO <= CACHE_VALID(7 downto 0);
-					when x"08" => SS_DO <= CACHE_VALID(15 downto 8);
-					when x"09" => SS_DO <= CACHE_VALID(23 downto 16);
-					when x"0A" => SS_DO <= CACHE_VALID(31 downto 24);
-					when x"0B" => SS_DO <= CBR(7 downto 0);
-					when x"0C" => SS_DO <= CBR(15 downto 8);
-					when x"0D" => SS_DO <= CACHE_SRC_ADDR(7 downto 0);
-					when x"0E" => SS_DO <= CACHE_SRC_ADDR(15 downto 8);
-					when x"0F" => SS_DO <= CACHE_SRC_ADDR(23 downto 16);
-					when x"10" => SS_DO <= std_logic_vector(CACHE_DST_ADDR(7 downto 0));
-					when x"11" => SS_DO <= "000" & CACHE_RUN & CACHE_DST_ADDR(8) & std_logic_vector(to_unsigned(STATE, 3));
-					when x"12" => SS_DO <= std_logic_vector(SREG) & std_logic_vector(DREG);
-					when x"13" => SS_DO <= "0" & FLAG_OV & FLAG_CY & FLAG_S & FLAG_Z & FLAG_ALT2 & FLAG_ALT1 & FLAG_B;
-					when x"14" => SS_DO <= REG_LSB;
-					when x"15" => SS_DO <= RAMBR;
-					when x"16" => SS_DO <= ROMBR;
-					when x"17" => SS_DO <= "00" & MULTST & LMULT & MULT_WAIT & std_logic_vector(MULT_ACCESS_CNT);
-					when x"18" => SS_DO <= ROMDR;
-					when x"19" => SS_DO <= ROM_BUF;
-					when x"1A" =>
-						SS_DO(7 downto 4) <= ROM_LOAD_END & ROM_LOAD_START & ROM_LOAD_WAIT & ROM_LOAD_PEND;
-						SS_DO(3 downto 0) <= ROM_FETCH_END & std_logic_vector(ROM_ACCESS_CNT);
-					when x"1B" =>
-						SS_DO(7 downto 4) <= ROM_FETCH_EN & ROM_FETCH_START & ROM_FETCH_WAIT & ROM_FETCH_PEND;
-						SS_DO(3 downto 0) <= FLAG_R & R14_CHANGE_LATCH & ROM_CACHE_EN & ROM_CACHE_WAIT;
-					when x"1C" => SS_DO <= "00000" & ROMST;
-					when x"1D" => SS_DO <= RAMADDR(7 downto 0);
-					when x"1E" => SS_DO <= RAMADDR(15 downto 8);
-					when x"1F" => SS_DO <= RAMDR(7 downto 0);
-					when x"20" => SS_DO <= RAMDR(15 downto 8);
-					when x"21" => SS_DO <= RAM_BUF;
-					when x"22" => SS_DO <= RAM_LOAD_BUF(7 downto 0);
-					when x"23" => SS_DO <= RAM_LOAD_BUF(15 downto 8);
-					when x"24" =>
-						SS_DO(7 downto 4) <= RAM_LOAD_END & RAM_LOAD_START & RAM_LOAD_WAIT & RAM_LOAD_PEND;
-						SS_DO(3 downto 0) <= "0" & std_logic_vector(RAM_ACCESS_CNT);
-					when x"25" =>
-						SS_DO(7 downto 4) <= RAM_FETCH_END & RAM_FETCH_START & RAM_FETCH_WAIT & RAM_FETCH_PEND;
-						SS_DO(3 downto 0) <= RAM_CACHE_END & RAM_CACHE_EN & RAM_CACHE_WAIT & RAM_FETCH_EN;
-					when x"26" =>
-						SS_DO(7 downto 4) <= RAM_PCF_EXEC & RAM_PCF_START & RAM_PCF_WAIT & RAM_PCF_PEND;
-						SS_DO(3 downto 0) <= PCF_WO & PCF_RW & RAM_PCF_FULL & RAM_PCF_END;
-					when x"27" =>
-						SS_DO(7 downto 4) <= "0" & RAM_RPIX_EXEC & RAM_RPIX_START & RAM_RPIX_PEND;
-						SS_DO(3 downto 0) <= RAM_SAVE_END & RAM_SAVE_START & RAM_SAVE_WAIT & RAM_SAVE_PEND;
-					when x"28" => SS_DO <= SS_RAM_STORE_WORD & SS_RAM_LOAD_WORD & RAM_BYTES & RAM_WORD & RAMST;
-					when x"29" => SS_DO <= "000" & POR_OBJ & POR_FH & POR_HN & POR_DITH & POR_TRANS;
-					when x"2A" => SS_DO <= COLR;
-					when x"2B" => SS_DO <= PIX_CACHE(0).DATA(0);
-					when x"2C" => SS_DO <= PIX_CACHE(0).DATA(1);
-					when x"2D" => SS_DO <= PIX_CACHE(0).DATA(2);
-					when x"2E" => SS_DO <= PIX_CACHE(0).DATA(3);
-					when x"2F" => SS_DO <= PIX_CACHE(0).DATA(4);
-					when x"30" => SS_DO <= PIX_CACHE(0).DATA(5);
-					when x"31" => SS_DO <= PIX_CACHE(0).DATA(6);
-					when x"32" => SS_DO <= PIX_CACHE(0).DATA(7);
-					when x"33" => SS_DO <= std_logic_vector(PIX_CACHE(0).OFFSET(7 downto 0));
-					when x"34" => SS_DO <= "000" & std_logic_vector(PIX_CACHE(0).OFFSET(12 downto 8));
-					when x"35" => SS_DO <= PIX_CACHE(0).VALID;
-					when x"36" => SS_DO <= PIX_CACHE(1).DATA(0);
-					when x"37" => SS_DO <= PIX_CACHE(1).DATA(1);
-					when x"38" => SS_DO <= PIX_CACHE(1).DATA(2);
-					when x"39" => SS_DO <= PIX_CACHE(1).DATA(3);
-					when x"3A" => SS_DO <= PIX_CACHE(1).DATA(4);
-					when x"3B" => SS_DO <= PIX_CACHE(1).DATA(5);
-					when x"3C" => SS_DO <= PIX_CACHE(1).DATA(6);
-					when x"3D" => SS_DO <= PIX_CACHE(1).DATA(7);
-					when x"3E" => SS_DO <= std_logic_vector(PIX_CACHE(1).OFFSET(7 downto 0));
-					when x"3F" => SS_DO <= "000" & std_logic_vector(PIX_CACHE(1).OFFSET(12 downto 8));
-					when x"40" => SS_DO <= PIX_CACHE(1).VALID;
-					when x"41" => SS_DO <= PCF_RD_DATA;
-					when x"42" => SS_DO <= RPIX_DATA;
-					when x"43" => SS_DO <= "00000" & std_logic_vector(BPP_CNT);
-					when others => SS_DO <= x"00";
-				end case;
-		end if;
-	end process;
-
 end rtl;
