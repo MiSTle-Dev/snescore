@@ -7,6 +7,17 @@
 
 `include "config.vh"
 
+`ifdef BSRAM_BRAM
+`ifndef SDRAM_3CH
+`error "BSRAM_BRAM requires the three-channel SDRAM controller"
+`endif
+`endif
+`ifdef CHIP_GSU
+`ifndef SDRAM_3CH
+`error "CHIP_GSU requires the three-channel SDRAM controller"
+`endif
+`endif
+
 `ifndef VERILATOR
 `ifndef MEGA
 `ifndef PRIMER
@@ -259,9 +270,16 @@ rst_sync resets (
 wire DOT_CLK_CE;
 
 wire [23:0] ROM_ADDR;
+wire [22:0] gsu_rom_addr;
 wire ROM_CE_N, ROM_OE_N, ROM_WE_N, ROM_WORD;
 wire [15:0] ROM_D;
 wire [15:0] ROM_Q;
+wire        gsu_rom_req;
+reg         gsu_rom_accept, gsu_rom_done;
+wire [15:0] gsu_rom_word;
+reg [15:0]  gsu_cached_word;
+reg         gsu_byte_sel;
+wire [7:0]  gsu_rom_q = gsu_byte_sel ? gsu_cached_word[15:8] : gsu_cached_word[7:0];
 assign      ROM_Q = (ROM_WORD || ~ROM_ADDR[0]) ? cpu_port0 : { cpu_port0[7:0], cpu_port0[15:8] };
 
 wire [16:0] WRAM_ADDR;
@@ -441,6 +459,10 @@ main #(
     .ROM_CE_N(ROM_CE_N), .ROM_OE_N(ROM_OE_N), .ROM_WE_N(ROM_WE_N),
     .ROM_WORD(ROM_WORD),
 
+    .GSU_ROM_ADDR(gsu_rom_addr), .GSU_ROM_REQ(gsu_rom_req), .GSU_ROM_OWNED(),
+    .GSU_ROM_ACCEPT(gsu_rom_accept), .GSU_ROM_DONE(gsu_rom_done),
+    .GSU_ROM_Q(gsu_rom_q),
+
     .BSRAM_ADDR(BSRAM_ADDR), .BSRAM_D(BSRAM_D),	.BSRAM_Q(BSRAM_Q),
     .BSRAM_CE_N(BSRAM_CE_N), .BSRAM_OE_N(BSRAM_OE_N), .BSRAM_WE_N(BSRAM_WE_N),
     .BSRAM_RD_N(BSRAM_RD_N),
@@ -484,6 +506,10 @@ main #(
 );
 `endif
 
+`ifdef DISABLE_SNES
+assign gsu_rom_req = 1'b0;
+`endif
+
 // SDRAM for SNES ROM, WRAM and ARAM
 wire [15:0] cpu_port0;
 wire [15:0] cpu_port1;
@@ -495,6 +521,10 @@ reg  [1:0]  cpu_ds;
 reg [15:0]  cpu_din;
 reg [22:0]  cpu_addr;
 reg         cpu_we;
+reg         gsu_req_toggle, gsu_inflight, gsu_req_armed, gsu_ack_seen, gsu_done_seen;
+reg [21:0]  gsu_word_addr, gsu_cached_addr;
+reg         gsu_cache_valid;
+wire        gsu_req_ack, gsu_read_done;
 
 wire [22:0] rom_addr = loading ? loader_addr : ROM_ADDR[22:0];
 reg [22:0]  rom_addr_sd;
@@ -502,7 +532,7 @@ reg [22:0]  rom_addr_sd;
 reg [16:0]  wram_addr_sd;
 reg         wram_wr_r, wram_rd_r;
 
-reg         bsram_req, bsram_we;
+reg         bsram_req;
 wire        bsram_req_ack;
 reg [19:0]  bsram_addr;
 reg [7:0]   bsram_din;
@@ -520,34 +550,76 @@ wire        aram_req_ack;
 
 assign      O_sdram_clk = fclk_p;
 
-// Generate SDRAM signals
+// The GSU uses its own SDRAM request and data path.
+`ifdef CHIP_GSU
+always @(posedge mclk) begin
+    if (!resetn) begin
+        gsu_req_toggle <= gsu_req_ack;
+        gsu_inflight <= 0;
+        gsu_req_armed <= 1;
+        gsu_ack_seen <= gsu_req_ack;
+        gsu_done_seen <= gsu_read_done;
+        gsu_rom_accept <= 0;
+        gsu_rom_done <= 0;
+        gsu_cache_valid <= 0;
+    end else begin
+        gsu_rom_accept <= 0;
+        gsu_rom_done <= 0;
+        if (!gsu_rom_req) gsu_req_armed <= 1;
+        if (gsu_req_ack != gsu_ack_seen) begin
+            gsu_ack_seen <= gsu_req_ack;
+            gsu_rom_accept <= 1;
+        end
+        if (gsu_read_done != gsu_done_seen) begin
+            gsu_done_seen <= gsu_read_done;
+            gsu_rom_done <= 1;
+            gsu_inflight <= 0;
+            gsu_cached_word <= gsu_rom_word;
+            gsu_cached_addr <= gsu_word_addr;
+            gsu_cache_valid <= 1;
+        end
+        if (gsu_rom_req && gsu_req_armed && !gsu_inflight) begin
+            gsu_byte_sel <= gsu_rom_addr[0];
+            gsu_req_armed <= 0;
+            if (gsu_cache_valid && gsu_cached_addr == gsu_rom_addr[22:1]) begin
+                gsu_rom_accept <= 1;
+                gsu_rom_done <= 1;
+            end else begin
+                gsu_word_addr <= gsu_rom_addr[22:1];
+                gsu_req_toggle <= ~gsu_req_toggle;
+                gsu_inflight <= 1;
+            end
+        end
+        if (loading || !snes_resetn) gsu_cache_valid <= 0;
+    end
+end
+`endif
+
+// Generate requests for the other SDRAM ports.
 always @(posedge mclk) begin
     if (~resetn) begin
     end else begin
-        // ROM read and load
         if (loading && (loader_do_valid && loader_do_ready) && header_finished && loader_addr[0]
             || ~loading && ~ROM_CE_N && rom_addr_sd != rom_addr) begin
             rom_addr_sd <= rom_addr;
             cpu_addr <= rom_addr;
             cpu_req <= ~cpu_req;
             cpu_we <= loading;
-            cpu_din <= {loader_do, loader_do_r};    // write 16 bits on odd addresses
+            cpu_din <= {loader_do, loader_do_r};
             cpu_ds <= 2'b11;
             cpu_port <= 0;
         end
 
-        // WRAM read/write
         wram_rd_r <= wram_rd; wram_wr_r <= wram_wr;
         if ((wram_rd && WRAM_ADDR[16:1] != wram_addr_sd[16:1]) || (wram_rd & ~wram_rd_r) || (wram_wr & ~wram_wr_r)) begin
             wram_addr_sd <= WRAM_ADDR;
             cpu_req <= ~cpu_req;
-            cpu_addr <= {6'b111_111, WRAM_ADDR[16:0]};  // 7E,7F:0000-FFFF, total 128KB
+            cpu_addr <= {6'b111_111, WRAM_ADDR[16:0]};
             cpu_we <= wram_wr;
             cpu_ds <= {WRAM_ADDR[0], ~WRAM_ADDR[0]};
             cpu_din <= {WRAM_D, WRAM_D};
             cpu_port <= 1;
         end
-
         // BSRAM read/write
         bsram_rd_r <= bsram_rd; bsram_wr_r <= bsram_wr;
         if (bsram_rd && BSRAM_ADDR != bsram_addr || (bsram_wr & ~bsram_wr_r) || (bsram_rd & ~bsram_rd_r)) begin
@@ -582,11 +654,55 @@ reg  [15:0] rv_dout0;
 wire [31:0] rv_rdata = {rv_dout, rv_dout0};
 reg         rv_valid_r;
 reg         rv_word;           // which word
-reg         rv_req;
-wire        rv_req_ack;
-wire [15:0] rv_dout;
+reg         rv_req;            // SDRAM request toggle
+wire        rv_sdram_req_ack;
+wire [15:0] rv_sdram_dout;
 reg [1:0]   rv_ds;
 reg         rv_new_req;
+wire        rv_write = |rv_wstrb;
+wire        rv_new_req_t = rv_valid & ~rv_valid_r;
+
+`ifdef BSRAM_BRAM
+// IOSys maps 0x700000-0x7fffff to BSRAM. The 64 KiB block RAM mirrors
+// throughout that window, as it does for the SNES BSRAM address port.
+wire        rv_bsram_sel = rv_addr[22:20] == 3'b111;
+reg         rv_bram_req, rv_bram_req_ack;
+wire [15:0] rv_bram_dout;
+reg         bsram_bram_req_ack;
+wire        rv_req_ack = rv_bsram_sel ? rv_bram_req_ack : rv_sdram_req_ack;
+wire        rv_req_active = rv_bsram_sel ? rv_bram_req : rv_req;
+wire [15:0] rv_dout = rv_bsram_sel ? rv_bram_dout : rv_sdram_dout;
+wire        bsram_bram_en = resetn;  // continuous read
+`ifdef MCU_BL616
+wire        rv_bram_en = 1'b0;
+`else
+wire        rv_bram_en = resetn && (rv_bram_req ^ rv_bram_req_ack);
+`endif
+
+bsram_bram bsram_mem (
+    .clk(mclk),
+    .snes_en(bsram_bram_en), .snes_addr(BSRAM_ADDR[15:0]),
+    .snes_we(bsram_wr), .snes_din(BSRAM_D), .snes_dout(bsram_dout),
+    .rv_en(rv_bram_en), .rv_addr({rv_addr[15:2], rv_word}),
+    .rv_we(rv_write), .rv_ds(rv_ds),
+    .rv_din(rv_word ? rv_wdata[31:16] : rv_wdata[15:0]), .rv_dout(rv_bram_dout)
+);
+
+always @(posedge mclk) begin
+    if (~resetn) begin
+        bsram_bram_req_ack <= 0;
+        rv_bram_req_ack <= 0;
+    end else begin
+        bsram_bram_req_ack <= bsram_req;
+        rv_bram_req_ack <= rv_bram_req;
+    end
+end
+assign bsram_req_ack = bsram_bram_req_ack;
+`else
+wire        rv_req_ack = rv_sdram_req_ack;
+wire        rv_req_active = rv_req;
+wire [15:0] rv_dout = rv_sdram_dout;
+`endif
 
 reg [14:0] vram1_addr_sd, vram2_addr_sd;
 reg vram1_we_n_old, vram2_we_n_old;
@@ -610,7 +726,11 @@ always @(posedge mclk) begin
     end
 end
 
+`ifdef CHIP_GSU
+sdram_snes_gsu sdram(
+`else
 sdram_snes sdram(
+`endif
     .clk(fclk), .mclk(mclk), .clkref(DOT_CLK_CE), .resetn(sdram_resetn), .ready(sdram_ready), .refreshing(sdram_refreshing),
 
     // SDRAM pins
@@ -621,11 +741,20 @@ sdram_snes sdram(
     // CPU accesses
     .cpu_addr(cpu_addr[22:1]), .cpu_din(cpu_din), .cpu_port(cpu_port),
     .cpu_port0(cpu_port0), .cpu_port1(cpu_port1), .cpu_req(cpu_req), .cpu_req_ack(cpu_req_ack),
+`ifdef CHIP_GSU
+    .gsu_addr(gsu_word_addr), .gsu_req(gsu_req_toggle),
+    .gsu_req_ack(gsu_req_ack), .gsu_done(gsu_read_done), .gsu_dout(gsu_rom_word),
+`endif
     .cpu_we(cpu_we), .cpu_ds(cpu_ds),
 
     // BSRAM accesses
+`ifdef BSRAM_BRAM
+    .bsram_addr(20'b0), .bsram_dout(), .bsram_din(8'b0),
+    .bsram_req(1'b0), .bsram_req_ack(), .bsram_we(1'b0),
+`else
     .bsram_addr(bsram_addr), .bsram_dout(bsram_dout), .bsram_din(bsram_din),
     .bsram_req(bsram_req), .bsram_req_ack(bsram_req_ack), .bsram_we(bsram_wr),
+`endif
 
     // ARAM accesses
     .aram_16(aram_16), .aram_addr(ARAM_ADDR), .aram_din({ARAM_D, ARAM_D}),
@@ -645,7 +774,7 @@ sdram_snes sdram(
 `else
     // IOSys risc-v softcore
     .rv_addr({rv_addr[22:2], rv_word}), .rv_din(rv_word ? rv_wdata[31:16] : rv_wdata[15:0]),
-    .rv_ds(rv_ds), .rv_dout(rv_dout), .rv_req(rv_req), .rv_req_ack(rv_req_ack), .rv_we(rv_wstrb != 0)
+    .rv_ds(rv_ds), .rv_dout(rv_sdram_dout), .rv_req(rv_req), .rv_req_ack(rv_sdram_req_ack), .rv_we(rv_wstrb != 0)
 `endif
 );
 
@@ -660,7 +789,7 @@ vram vram(
 );
 `endif
 
-assign loader_do_ready = (cpu_req == cpu_req_ack);
+assign loader_do_ready = cpu_req == cpu_req_ack;
 
 reg [7:0] loader_do_r;
 reg loading_r;
@@ -940,9 +1069,14 @@ always @(posedge mclk) begin            // RV
     if (~resetn) begin
         rvst <= RV_IDLE_REQ0;
         rv_ready <= 0;
+        rv_valid_r <= 0;
+        rv_new_req <= 0;
+        // Keep the toggle handshake idle across a warm reset.
+        rv_req <= rv_sdram_req_ack;
+`ifdef BSRAM_BRAM
+        rv_bram_req <= rv_bram_req_ack;
+`endif
     end else begin
-        reg write = rv_wstrb != 0;
-        reg rv_new_req_t = rv_valid & ~rv_valid_r;
         if (rv_new_req_t) rv_new_req <= 1;
 
         rv_ready <= 0;
@@ -951,15 +1085,20 @@ always @(posedge mclk) begin            // RV
         case (rvst)
         RV_IDLE_REQ0: if (rv_new_req || rv_new_req_t) begin
             rv_new_req <= 0;
+`ifdef BSRAM_BRAM
+            if (rv_bsram_sel)
+                rv_bram_req <= ~rv_bram_req;
+            else
+`endif
             rv_req <= ~rv_req;
-            if (write && rv_wstrb[1:0] == 2'b0) begin
+            if (rv_write && rv_wstrb[1:0] == 2'b0) begin
                 // shortcut for only writing the upper word
                 rv_word <= 1;
                 rv_ds <= rv_wstrb[3:2];
                 rvst <= RV_WAIT1;
             end else begin
                 rv_word <= 0;
-                if (write)
+                if (rv_write)
                     rv_ds <= rv_wstrb[1:0];
                 else
                     rv_ds <= 2'b11;
@@ -968,21 +1107,21 @@ always @(posedge mclk) begin            // RV
         end
 
         RV_WAIT0_REQ1: begin
-            if (rv_req == rv_req_ack) begin
-                rv_req <= ~rv_req;      // request 1
-                rv_word <= 1;
-                if (write) begin
-                    rvst <= RV_WAIT1;
-                    if (rv_wstrb[3:2] == 2'b0) begin
-                        // shortcut for only writing the lower word
-                        rv_req <= rv_req;
-                        rv_ready <= 1;
-                        rvst <= RV_IDLE_REQ0;
-                    end
-                    rv_ds <= rv_wstrb[3:2];
+            if (rv_req_active == rv_req_ack) begin
+                if (rv_write && rv_wstrb[3:2] == 2'b0) begin
+                    // Only the lower halfword was written.
+                    rv_ready <= 1;
+                    rvst <= RV_IDLE_REQ0;
                 end else begin
-                    rv_ds <= 2'b11;
-                    rvst <= RV_DATA0;
+`ifdef BSRAM_BRAM
+                    if (rv_bsram_sel)
+                        rv_bram_req <= ~rv_bram_req;
+                    else
+`endif
+                    rv_req <= ~rv_req;  // request upper halfword
+                    rv_word <= 1;
+                    rv_ds <= rv_write ? rv_wstrb[3:2] : 2'b11;
+                    rvst <= rv_write ? RV_WAIT1 : RV_DATA0;
                 end
             end
         end
@@ -993,8 +1132,8 @@ always @(posedge mclk) begin            // RV
         end
 
         RV_WAIT1:
-            if (rv_req == rv_req_ack) begin
-                if (write)  begin
+            if (rv_req_active == rv_req_ack) begin
+                if (rv_write) begin
                     rv_ready <= 1;
                     rvst <= RV_IDLE_REQ0;
                 end else
