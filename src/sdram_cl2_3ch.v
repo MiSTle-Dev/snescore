@@ -95,7 +95,7 @@ module sdram_snes
 
     input      [19:0] bsram_addr,   // only [16:0], max 128KB
     input       [7:0] bsram_din,    // byte access
-    output reg  [7:0] bsram_dout,
+    output wire [15:0] bsram_dout,
     input             bsram_req,
     output reg        bsram_req_ack,
     input             bsram_we,
@@ -344,9 +344,9 @@ always @(*) begin
     end
 end
 
-reg [7:0] bsram_dout_reg;
+reg [15:0] bsram_dout_reg;
 
-assign bsram_dout = (cycle[4] && oe_latch[0] && port[0] == PORT_BSRAM) ? (ds[0][0] ? dq_in[7:0] : dq_in[15:8]) : bsram_dout_reg;
+assign bsram_dout = (cycle[4] && oe_latch[0] && port[0] == PORT_BSRAM) ? dq_in : bsram_dout_reg;
 
 //
 // Generate cfg_now pulse after initialization delay (normally 200us)
@@ -548,7 +548,7 @@ always @(posedge clk, negedge resetn) begin
             if (cycle[5] && oe_latch[0]) begin
                 case (port[0])
                 PORT_CPU:   if (cpu_port) cpu_port1 <= dq_in; else cpu_port0 <= dq_in;
-                PORT_BSRAM: bsram_dout_reg <= ds[0][0] ? dq_in[7:0] : dq_in[15:8];
+                PORT_BSRAM: bsram_dout_reg <= dq_in;
                 PORT_RV:    rv_dout <= dq_in;
                 default: ;
                 endcase

@@ -49,7 +49,7 @@ module sdram_snes
 
     input      [19:0] bsram_addr,
     input       [7:0] bsram_din,
-    output reg  [7:0] bsram_dout,
+    output reg [15:0] bsram_dout,
     input             bsram_req,
     output reg        bsram_req_ack,
     input             bsram_we,
@@ -208,7 +208,7 @@ always @(posedge mclk) begin
                     else
                         mem_bsram[bsram_addr[16:1]][7:0] <= bsram_din;
                 end else
-                    cpu_dout_pre <= bsram_addr[0] ? {8'b0, mem_bsram[bsram_addr[16:1]][15:8]} : {8'b0, mem_bsram[bsram_addr[16:1]][7:0]};
+                    cpu_dout_pre <= mem_bsram[bsram_addr[16:1]];
 `ifdef CHIP_GSU
             end else if ((gsu_req ^ gsu_req_ack) &&
                          (!(rv_req ^ rv_req_ack) || gsu_turn)) begin
@@ -261,7 +261,7 @@ always @(posedge mclk) begin
                     cpu_port0 <= cpu_dout_pre; 
             end else if (port[0] == PORT_BSRAM) begin       // BSRAM
                 bsram_req_ack <= bsram_req;
-                bsram_dout <= cpu_dout_pre[7:0];
+                bsram_dout <= cpu_dout_pre;
 `ifdef CHIP_GSU
             end else if (port[0] == PORT_GSU) begin
                 gsu_req_ack <= gsu_req;

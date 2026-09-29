@@ -298,7 +298,13 @@ wire        BSRAM_CE_N;
 wire        BSRAM_OE_N;
 wire        BSRAM_WE_N;
 wire        BSRAM_RD_N;
+`ifdef BSRAM_BRAM
 wire  [7:0] BSRAM_Q = bsram_dout;
+`elsif SDRAM_3CH
+wire  [7:0] BSRAM_Q = BSRAM_ADDR[0] ? bsram_word[15:8] : bsram_word[7:0];
+`else
+wire  [7:0] BSRAM_Q = bsram_dout;
+`endif
 wire  [7:0] BSRAM_D;
 
 wire [15:0] VRAM1_ADDR;
@@ -522,29 +528,41 @@ reg [15:0]  cpu_din;
 reg [22:0]  cpu_addr;
 reg         cpu_we;
 reg         gsu_req_toggle, gsu_inflight, gsu_req_armed, gsu_ack_seen, gsu_done_seen;
-reg [21:0]  gsu_word_addr, gsu_cached_addr;
+reg [22:1]  gsu_word_addr, gsu_cached_addr;
 reg         gsu_cache_valid;
 wire        gsu_req_ack, gsu_read_done;
 
 wire [22:0] rom_addr = loading ? loader_addr : ROM_ADDR[22:0];
 reg [22:0]  rom_addr_sd;
+reg         rom_word_valid;
 
 reg [16:0]  wram_addr_sd;
-reg         wram_wr_r, wram_rd_r;
+reg         wram_word_valid, wram_wr_r;
 
 reg         bsram_req;
 wire        bsram_req_ack;
 reg [19:0]  bsram_addr;
 reg [7:0]   bsram_din;
 wire [7:0]  bsram_dout;
+wire [15:0] bsram_word;
 wire        bsram_rd = ~BSRAM_CE_N & (~BSRAM_RD_N || rom_type[7:4] == 4'hC);
 wire        bsram_wr = ~BSRAM_CE_N & ~BSRAM_WE_N;
 reg         bsram_rd_r, bsram_wr_r;
+reg         bsram_word_valid;
+wire        bsram_rv_write_done;
+`ifdef BSRAM_BRAM
+wire        bsram_read_miss = BSRAM_ADDR != bsram_addr || !bsram_rd_r;
+`elsif SDRAM_3CH
+wire        bsram_read_miss = !bsram_word_valid || BSRAM_ADDR[19:1] != bsram_addr[19:1];
+`else
+wire        bsram_read_miss = BSRAM_ADDR != bsram_addr || !bsram_rd_r;
+`endif
 
 wire        aram_rd = ~ARAM_CE_N & ~ARAM_OE_N;
 wire        aram_wr = ~ARAM_CE_N & ~ARAM_WE_N;
 reg [15:0]  aram_addr_sd;
-reg         aram_rd_r, aram_wr_r;
+reg         aram_word_valid;
+reg         aram_wr_r;
 reg         aram_req;
 wire        aram_req_ack;
 
@@ -598,9 +616,15 @@ end
 // Generate requests for the other SDRAM ports.
 always @(posedge mclk) begin
     if (~resetn) begin
+        rom_word_valid <= 0;
+        wram_word_valid <= 0;
+        wram_wr_r <= 0;
+        bsram_word_valid <= 0;
+        aram_word_valid <= 0;
     end else begin
+        if (loading) rom_word_valid <= 0;
         if (loading && (loader_do_valid && loader_do_ready) && header_finished && loader_addr[0]
-            || ~loading && ~ROM_CE_N && rom_addr_sd != rom_addr) begin
+            || ~loading && ~ROM_CE_N && (!rom_word_valid || rom_addr_sd[22:1] != rom_addr[22:1])) begin
             rom_addr_sd <= rom_addr;
             cpu_addr <= rom_addr;
             cpu_req <= ~cpu_req;
@@ -608,10 +632,13 @@ always @(posedge mclk) begin
             cpu_din <= {loader_do, loader_do_r};
             cpu_ds <= 2'b11;
             cpu_port <= 0;
+            if (!loading) rom_word_valid <= 1;
         end
 
-        wram_rd_r <= wram_rd; wram_wr_r <= wram_wr;
-        if ((wram_rd && WRAM_ADDR[16:1] != wram_addr_sd[16:1]) || (wram_rd & ~wram_rd_r) || (wram_wr & ~wram_wr_r)) begin
+        wram_wr_r <= wram_wr;
+        if (wram_wr) wram_word_valid <= 0;
+        if (wram_rd && (!wram_word_valid || WRAM_ADDR[16:1] != wram_addr_sd[16:1])
+            || (wram_wr && !wram_wr_r)) begin
             wram_addr_sd <= WRAM_ADDR;
             cpu_req <= ~cpu_req;
             cpu_addr <= {6'b111_111, WRAM_ADDR[16:0]};
@@ -619,20 +646,27 @@ always @(posedge mclk) begin
             cpu_ds <= {WRAM_ADDR[0], ~WRAM_ADDR[0]};
             cpu_din <= {WRAM_D, WRAM_D};
             cpu_port <= 1;
+            if (!wram_wr) wram_word_valid <= 1;
         end
+
         // BSRAM read/write
         bsram_rd_r <= bsram_rd; bsram_wr_r <= bsram_wr;
-        if (bsram_rd && BSRAM_ADDR != bsram_addr || (bsram_wr & ~bsram_wr_r) || (bsram_rd & ~bsram_rd_r)) begin
+        if (bsram_wr || bsram_rv_write_done) bsram_word_valid <= 0;
+        if (bsram_rd && bsram_read_miss || (bsram_wr & ~bsram_wr_r)) begin
             bsram_addr <= BSRAM_ADDR;
             bsram_req <= ~bsram_req;
             bsram_din <= BSRAM_D;
+            if (!bsram_wr) bsram_word_valid <= 1;
         end
 
         // ARAM read/write
-        aram_rd_r <= aram_rd; aram_wr_r <= aram_wr;
-        if (aram_rd && aram_addr_sd != ARAM_ADDR || (aram_wr && aram_addr_sd != ARAM_ADDR) || (aram_rd & ~aram_rd_r) || (aram_wr & ~aram_wr_r)) begin
+        aram_wr_r <= aram_wr;
+        if (aram_wr) aram_word_valid <= 0;
+        if (aram_rd && (!aram_word_valid || aram_addr_sd[15:1] != ARAM_ADDR[15:1])
+            || aram_wr && (aram_addr_sd != ARAM_ADDR || !aram_wr_r)) begin
             aram_req <= ~aram_req;
             aram_addr_sd <= ARAM_ADDR;
+            if (!aram_wr) aram_word_valid <= 1;
         end
     end
 end
@@ -661,6 +695,11 @@ reg [1:0]   rv_ds;
 reg         rv_new_req;
 wire        rv_write = |rv_wstrb;
 wire        rv_new_req_t = rv_valid & ~rv_valid_r;
+`ifdef MCU_BL616
+assign      bsram_rv_write_done = 1'b0;
+`else
+assign      bsram_rv_write_done = rv_ready && rv_write;
+`endif
 
 `ifdef BSRAM_BRAM
 // IOSys maps 0x700000-0x7fffff to BSRAM. The 64 KiB block RAM mirrors
@@ -752,7 +791,11 @@ sdram_snes sdram(
     .bsram_addr(20'b0), .bsram_dout(), .bsram_din(8'b0),
     .bsram_req(1'b0), .bsram_req_ack(), .bsram_we(1'b0),
 `else
+`ifdef SDRAM_3CH
+    .bsram_addr(bsram_addr), .bsram_dout(bsram_word), .bsram_din(bsram_din),
+`else
     .bsram_addr(bsram_addr), .bsram_dout(bsram_dout), .bsram_din(bsram_din),
+`endif
     .bsram_req(bsram_req), .bsram_req_ack(bsram_req_ack), .bsram_we(bsram_wr),
 `endif
 

@@ -94,7 +94,7 @@ module sdram_snes_gsu
     input       [1:0] cpu_ds,       // which bytes to enable
 
     // GSU ROM reads use a 16-bit word address and return the full word.
-    input      [21:0] gsu_addr,
+    input      [22:1] gsu_addr,
     input             gsu_req,
     output reg        gsu_req_ack,
     output reg        gsu_done,
@@ -102,7 +102,7 @@ module sdram_snes_gsu
 
     input      [19:0] bsram_addr,   // only [16:0], max 128KB
     input       [7:0] bsram_din,    // byte access
-    output reg  [7:0] bsram_dout,
+    output wire [15:0] bsram_dout,
     input             bsram_req,
     output reg        bsram_req_ack,
     input             bsram_we,
@@ -202,11 +202,11 @@ localparam PORT_BSRAM = 3'd2;
 localparam PORT_RV    = 3'd3;
 localparam PORT_GSU   = 3'd4;
 
-localparam PORT_ARAM  = 2'd1;
+localparam PORT_ARAM  = 3'd1;
 
-localparam PORT_VRAM  = 2'd1;
-localparam PORT_VRAM1 = 2'd2;
-localparam PORT_VRAM2 = 2'd3;
+localparam PORT_VRAM  = 3'd1;
+localparam PORT_VRAM1 = 3'd2;
+localparam PORT_VRAM2 = 3'd3;
 
 reg  [2:0] port[3];
 reg  [2:0] next_port[3];
@@ -220,9 +220,8 @@ reg aram_req_last;
 reg write_delay;
 reg clkref_r;
 reg cpu_port_latch;
-reg gsu_turn;
-wire gsu_pending = gsu_req ^ gsu_req_ack;
-wire rv_pending = rv_req ^ rv_req_ack;
+
+reg [3:0] rv_stall;
 
 always @(posedge clk)
     clkref_r <= clkref;
@@ -294,16 +293,16 @@ always @(*) begin
         next_oe[0] = ~bsram_we;
     end else if (need_refresh) begin
         /* no-op */
-    end else if (gsu_pending && (!rv_pending || gsu_turn)) begin
+    end else if ((gsu_req ^ gsu_req_ack) && ~&rv_stall) begin
         next_port[0] = PORT_GSU;
 `ifdef SDRAM_16M
-        next_addr[0] = { 1'b0, gsu_addr[21], 1'b0, gsu_addr[20:0], 1'b0 };
+        next_addr[0] = { 1'b0, gsu_addr[22], 1'b0, gsu_addr[21:1], 1'b0 };
 `else
         next_addr[0] = { 2'b00, gsu_addr, 1'b0 };
 `endif
         next_oe[0] = 1'b1;
         next_ds[0] = 2'b11;
-    end else if (rv_pending) begin
+    end else if (rv_req ^ rv_req_ack) begin
         next_port[0] = PORT_RV;
         next_addr[0] = { 2'b01, 2'b01, rv_addr[20:1], 1'b0 }; // upper 2MB of bank 1
         next_we[0] = rv_we;
@@ -365,9 +364,9 @@ always @(*) begin
     end
 end
 
-reg [7:0] bsram_dout_reg;
+reg [15:0] bsram_dout_reg;
 
-assign bsram_dout = (cycle[4] && oe_latch[0] && port[0] == PORT_BSRAM) ? (ds[0][0] ? dq_in[7:0] : dq_in[15:8]) : bsram_dout_reg;
+assign bsram_dout = (cycle[4] && oe_latch[0] && port[0] == PORT_BSRAM) ? dq_in : bsram_dout_reg;
 
 //
 // Generate cfg_now pulse after initialization delay (normally 200us)
@@ -407,7 +406,7 @@ always @(posedge clk, negedge resetn) begin
         rv_req_ack <= 0;
         gsu_req_ack <= 0;
         gsu_done <= 0;
-        gsu_turn <= 1;
+        rv_stall <= 0;
     end else begin
         // defaults
         dq_oen <= 1'b1;
@@ -456,8 +455,7 @@ always @(posedge clk, negedge resetn) begin
             if (cycle[0]) begin
                 port[0] <= next_port[0];
                 cpu_port_latch <= cpu_port;
-                if (next_port[0] == PORT_GSU) gsu_turn <= 0;
-                if (next_port[0] == PORT_RV)  gsu_turn <= 1;
+                if (next_port[0] == PORT_RV) rv_stall <= 0;
                 { we_latch[0], oe_latch[0] } <= { next_we[0], next_oe[0] };
                 addr_latch[0] <= next_addr[0];
                 a <= next_addr[0][22:10];
@@ -582,7 +580,7 @@ always @(posedge clk, negedge resetn) begin
             if (cycle[5] && oe_latch[0]) begin
                 case (port[0])
                 PORT_CPU:   if (cpu_port_latch) cpu_port1 <= dq_in; else cpu_port0 <= dq_in;
-                PORT_BSRAM: bsram_dout_reg <= ds[0][0] ? dq_in[7:0] : dq_in[15:8];
+                PORT_BSRAM: bsram_dout_reg <= dq_in;
                 PORT_RV:    rv_dout <= dq_in;
                 PORT_GSU:   gsu_dout <= dq_in;
                 default: ;
@@ -610,6 +608,14 @@ always @(posedge clk, negedge resetn) begin
                 PORT_VRAM2: vram2_dout <= din_latch[2][7:0];
                 default: ;
                 endcase
+            end
+
+            // RV <-> GSU arbitration
+            if (cycle[7]) begin
+                if (rv_req ^ rv_req_ack)
+                    rv_stall <= ~&rv_stall ? rv_stall + 1 : rv_stall;
+                else
+                    rv_stall <= 0;
             end
         end
     end

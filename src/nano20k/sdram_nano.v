@@ -91,7 +91,7 @@ module sdram_snes
 
     input      [19:0] bsram_addr,   // only [16:0], max 128KB
     input       [7:0] bsram_din,    // byte access
-    output reg  [7:0] bsram_dout,
+    output wire [15:0] bsram_dout,
     input             bsram_req,
     output reg        bsram_req_ack,
     input             bsram_we,
@@ -305,18 +305,9 @@ always @(*) begin
 	end
 end
 
-reg [7:0] bsram_dout_reg;
-always @* begin                 // output bsram_dout on the same cycle
-    if (cycle[5] && oe_latch[0] && port[0] == PORT_BSRAM)
-        case (addr_latch[0][1:0])
-        2'b00: bsram_dout = dq_in[7:0];
-        2'b01: bsram_dout = dq_in[15:8];
-        2'b10: bsram_dout = dq_in[23:16];
-        2'b11: bsram_dout = dq_in[31:24]; 
-        endcase
-    else
-        bsram_dout = bsram_dout_reg;
-end
+reg [15:0] bsram_dout_reg;
+assign bsram_dout = (cycle[5] && oe_latch[0] && port[0] == PORT_BSRAM) ?
+                    (addr_latch[0][1] ? dq_in[31:16] : dq_in[15:0]) : bsram_dout_reg;
 
 //
 // SDRAM state machine
@@ -506,13 +497,7 @@ always @(posedge clk) begin
                         cpu_port1 <= addr_latch[0][1] ? dq_in[31:16] : dq_in[15:0]; 
                     else 
                         cpu_port0 <= addr_latch[0][1] ? dq_in[31:16] : dq_in[15:0];
-                PORT_BSRAM: 
-                    case ({addr_latch[0][1:0]})
-                    2'b00: bsram_dout_reg <= dq_in[7:0];
-                    2'b01: bsram_dout_reg <= dq_in[15:8];
-                    2'b10: bsram_dout_reg <= dq_in[23:16];
-                    2'b11: bsram_dout_reg <= dq_in[31:24]; 
-                    endcase
+                PORT_BSRAM: bsram_dout_reg <= addr_latch[0][1] ? dq_in[31:16] : dq_in[15:0];
                 default: ;
                 endcase
             end
