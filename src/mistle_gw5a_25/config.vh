@@ -5,6 +5,7 @@
 `define MCU_SERV
 
 `define SDRAM_3CH
+// `define BSRAM_BRAM
 `define CHIP_DSPn
 // `define CHIP_GSU
 

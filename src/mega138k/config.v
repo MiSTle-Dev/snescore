@@ -1,3 +1,4 @@
+// `define BSRAM_BRAM
 
 `define MEGA
 `define CHIP_DSPn
