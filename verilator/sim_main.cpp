@@ -37,14 +37,15 @@ long long max_sim_time = 20000000LL;
 long long start_trace_time = 0;
 
 void usage() {
-	printf("Usage: sim [-t] [-c T]\n");
+	printf("Usage: sim [-r ROM.hex] [-t] [-c T]\n");
+	printf("  -r FILE load FILE as the SNES ROM (maximum 4 MiB)\n");
 	printf("  -t     output trace file waveform.fst\n");
 	printf("  -s T0  start tracing from time T0\n");
 	printf("  -c T   limit simulate lenght to T time steps. T=0 means infinite.\n");
 }
 
 VerilatedFstC *m_trace;
-Vsnestang_top* top = new Vsnestang_top;
+Vsnestang_top* top;
 
 // split by spaces
 vector<string> tokenize(string s);
@@ -54,7 +55,25 @@ void trace_off();
 
 vluint64_t sim_time;
 int main(int argc, char** argv, char** env) {
-	Verilated::commandArgs(argc, argv);
+	// Accept a conventional option and translate it to the Verilog plusarg
+	// consumed by test_loader. Direct +ROM=... remains supported as well.
+	vector<string> command_strings;
+	vector<char*> command_args;
+	command_strings.reserve(argc + 1);
+	command_args.reserve(argc + 1);
+	for (int i = 0; i < argc; i++) {
+		if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
+			command_strings.emplace_back(string("+ROM=") + argv[++i]);
+		} else {
+			command_strings.emplace_back(argv[i]);
+		}
+	}
+	for (string& arg : command_strings)
+		command_args.push_back(arg.data());
+	Verilated::commandArgs(command_args.size(), command_args.data());
+
+	Vsnestang_top* new_top = new Vsnestang_top;
+	top = new_top;
 	Vsnestang_top_snestang_top *snes = top->snestang_top;
 	bool frame_updated = false;
 	uint64_t start_ticks = SDL_GetPerformanceCounter();
@@ -72,6 +91,11 @@ int main(int argc, char** argv, char** env) {
 				printf("Simulating forever.\n");
 			else
 				printf("Simulating %lld steps\n", max_sim_time);
+		} else if (strcmp(argv[i], "-r") == 0 && i+1 < argc) {
+			i++;
+			printf("Loading ROM %s\n", argv[i]);
+		} else if (strncmp(argv[i], "+ROM=", 5) == 0) {
+			printf("Loading ROM %s\n", argv[i] + 5);
 		} else if (strcmp(argv[i], "-s") == 0 && i+1 < argc) {
 			start_trace_time = strtoll(argv[++i], &eptr, 10);
 			printf("Start tracing from %lld\n", start_trace_time);

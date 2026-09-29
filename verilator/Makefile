@@ -22,16 +22,25 @@ SNES_VHDL = $(CPU_VHDL) $(SWRAM_VHDL) $(PPU_VHDL) $(SMP_VHDL) \
 DSPN_VHDL = $D/spram.vhd $D/dpram.vhd $D/chip/DSP/DSPn.vhd
 DSP_MAP_VHDL = $D/CEGen.vhd $(DSPN_VHDL) $D/chip/DSP/OBC1.vhd \
 	$D/chip/SRTC.vhd $D/chip/DSP/DSP_LHRomMap.vhd
+GSU_VHDL = $D/chip/GSU/GSU_PKG.vhd $D/dpram_difclk.vhd \
+	$D/chip/GSU/GSU.vhd $D/chip/GSU/GSUMap.vhd
 
 GHDL_SRCS = $(GHDL_DIR)/DSP.v $(GHDL_DIR)/SMP.v $(GHDL_DIR)/SPPU.v \
 	$(GHDL_DIR)/CEGen.v $(GHDL_DIR)/CPU.v $(GHDL_DIR)/SWRAM.v $(GHDL_DIR)/SNES.v \
-	$(GHDL_DIR)/DSPn.v $(GHDL_DIR)/DSP_LHRomMap.v
+	$(GHDL_DIR)/DSPn.v $(GHDL_DIR)/DSP_LHRomMap.v \
+	$(GHDL_DIR)/GSU.v $(GHDL_DIR)/GSUMap.v
 SRCS = $D/verilator/config.v $D/verilator/test_loader.v $D/verilator/sdram_sim.v \
-	$D/verilator/dpram.v $D/verilator/spram.v $D/snestang_top.v $D/rst_sync.v $D/main.v \
+	$D/verilator/dpram.v $D/verilator/dpram_difclk.v $D/verilator/bsram_bram.v \
+	$D/verilator/spram.v \
+	$D/snestang_top.v $D/rst_sync.v $D/main.v \
 	$D/ppuhoam.v $D/ppuoam.v $D/ppusprbuf.v $D/ppucgram.v \
 	$D/chip/DSP/OBC1.v $D/chip/DSP/SRTC.v \
 	$D/smc_parser.v $D/mega138k/vram.v $(GHDL_SRCS)
-#	 $D/chip/GSU/GSU_PKG.v $D/chip/GSU/GSUMap.v $D/chip/GSU/GSU.v
+
+# Optional compile-time default; at runtime use: ./Vsnestang_top -r roms/game.hex
+ifneq ($(ROM_FILE),)
+VERILATOR_FLAGS += -DSIM_ROM_FILE=\"$(ROM_FILE)\"
+endif
 
 INCLUDES=-I$D/verilator -I$D -I$D/spc700 -I$D/65C816
 
@@ -81,6 +90,14 @@ $(GHDL_DIR)/DSPn.v: $(GHDL_CONFIG) $(DSPN_VHDL) | $(GHDL_DIR)
 
 $(GHDL_DIR)/DSP_LHRomMap.v: $(GHDL_CONFIG) $(DSP_MAP_VHDL) | $(GHDL_DIR)
 	cd $(PROJECT_ROOT) && $(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(abspath $(GHDL_CONFIG)) $(abspath $(DSP_MAP_VHDL)) -e DSP_LHRomMap > $(abspath $@.tmp)
+	mv $@.tmp $@
+
+$(GHDL_DIR)/GSU.v: $(GHDL_CONFIG) $(GSU_VHDL) | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) -frelaxed --vendor-library=work $(GHDL_CONFIG) $(GSU_VHDL) -e GSU > $@.tmp
+	mv $@.tmp $@
+
+$(GHDL_DIR)/GSUMap.v: $(GHDL_CONFIG) $(GSU_VHDL) | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) -frelaxed --vendor-library=work $(GHDL_CONFIG) $(GSU_VHDL) -e GSUMap > $@.tmp
 	mv $@.tmp $@
 
 ./obj_dir/V$N.cpp: Makefile sim_main.cpp $(SRCS)

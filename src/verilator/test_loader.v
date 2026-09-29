@@ -32,9 +32,15 @@ module test_loader (
 ///localparam string FILE = "roms/HiColor575Myst.hex";
 // localparam string FILE = "roms/MosaicMode3.hex";
 
-// 128KB ROMS
-localparam SIZE = 131584;
-localparam string FILE = "roms/hello.hex";
+// The runtime-selected image may be any size up to 4 MiB. Hex files used by
+// the simulator contain one byte per line, so determine the actual size at
+// startup instead of sending a fixed-size image to the SNES core.
+localparam integer MAX_SIZE = 4*1024*1024;
+`ifdef SIM_ROM_FILE
+localparam string DEFAULT_FILE = `SIM_ROM_FILE;
+`else
+localparam string DEFAULT_FILE = "roms/hello.hex";
+`endif
 // localparam string FILE = "roms/hello2.hex";
 // localparam string FILE = "roms/textbuffer-hello-world.hex";
 // localparam string FILE = "roms/Perspective.hex";
@@ -84,14 +90,39 @@ localparam string FILE = "roms/hello.hex";
 // localparam string FILE = "roms/super_metroid.hex";
 
 
-reg [7:0] rom [0:SIZE-1];
+reg [7:0] rom [0:MAX_SIZE-1];
+reg [21:0] addr;
+integer rom_size;
+integer fd;
+integer line_len;
+integer count;
+string file_name;
+
 initial begin
-   $readmemh(FILE, rom);
+   file_name = DEFAULT_FILE;
+   if ($value$plusargs("ROM=%s", file_name)) begin end
+
+   rom_size = 0;
+   fd = $fopen(file_name, "r");
+   if (fd == 0) begin
+       $display("ERROR: cannot open ROM hex file %s", file_name);
+       $finish;
+   end
+   while (!$feof(fd)) begin
+       line_len = $fgets(count, fd);
+       if (line_len > 0)
+           rom_size = rom_size + 1;
+   end
+   $fclose(fd);
+   if (rom_size > MAX_SIZE) begin
+       $display("ERROR: ROM %s has %0d bytes; maximum is %0d", file_name, rom_size, MAX_SIZE);
+       $finish;
+   end
+   $display("Loading ROM %s (%0d bytes)", file_name, rom_size);
+   $readmemh(file_name, rom, 0, rom_size - 1);
 end
 
-reg [$clog2(SIZE)-1:0] addr;
-
-assign loading = (addr != SIZE);
+assign loading = ({10'b0, addr} < rom_size);
 assign fail    = 1'b0;
 
 always @(posedge clk, negedge resetn) begin
@@ -100,12 +131,11 @@ always @(posedge clk, negedge resetn) begin
         dout_valid <= 0;
 
     end else if (!dout_valid || dout_ready) begin
-        dout <= rom[addr];
-        dout_valid <= 1;
-
-        if (addr == SIZE) begin
+        if ({10'b0, addr} >= rom_size) begin
             dout_valid <= 0;
         end else begin
+            dout <= rom[addr];
+            dout_valid <= 1;
             addr <= addr + 1;
             if (addr == 63)     // header is 64 bytes long
                 addr <= 512;

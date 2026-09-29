@@ -1,5 +1,8 @@
+// `define BSRAM_BRAM
+`define SDRAM_3CH
 `define SDRAM_DATA_WIDTH 16
 `define SDRAM_ROW_WIDTH 13
 `define SNES_FREQ 21_484_400
 `define PIXEL_FREQ 74_250_000
 `define CHIP_DSPn
+`define CHIP_GSU
