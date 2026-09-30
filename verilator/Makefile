@@ -5,6 +5,7 @@ GHDL ?= ghdl
 GHDL_FLAGS = --std=08 --latches --out=verilog -fsynopsys
 GHDL_DIR = obj_dir/ghdl
 GHDL_CONFIG = $D/verilator/config.vhd
+VERILOG_CONFIG = $D/verilator/config.vh
 PROJECT_ROOT := $(abspath ..)
 VERILATOR_FLAGS = -Wno-fatal
 
@@ -29,7 +30,8 @@ GHDL_SRCS = $(GHDL_DIR)/DSP.v $(GHDL_DIR)/SMP.v $(GHDL_DIR)/SPPU.v \
 	$(GHDL_DIR)/CEGen.v $(GHDL_DIR)/CPU.v $(GHDL_DIR)/SWRAM.v $(GHDL_DIR)/SNES.v \
 	$(GHDL_DIR)/DSPn.v $(GHDL_DIR)/DSP_LHRomMap.v \
 	$(GHDL_DIR)/GSU.v $(GHDL_DIR)/GSUMap.v
-SRCS = $D/verilator/test_loader.v $D/verilator/sdram_sim.v \
+SRCS = $D/verilator/test_loader.v $D/verilator/sdr_chip_model.v \
+	$D/sdram_cl2_3ch.v $D/sdram_cl2_3ch_gsu.v \
 	$D/verilator/dpram.v $D/verilator/dpram_difclk.v $D/verilator/bsram_bram.v \
 	$D/verilator/spram.v \
 	$D/snestang_top.v $D/rst_sync.v $D/main.v \
@@ -103,7 +105,7 @@ $(GHDL_DIR)/GSUMap.v: $(GHDL_CONFIG) $(GSU_VHDL) | $(GHDL_DIR)
 ./obj_dir:
 	mkdir -p obj_dir
 
-./obj_dir/V$N.cpp: Makefile sim_main.cpp $(SRCS) ./obj_dir
+./obj_dir/V$N.cpp: Makefile sim_main.cpp $(VERILOG_CONFIG) $(SRCS)
 	@echo
 	@echo "### VERILATE ####"
 	verilator $(VERILATOR_FLAGS) --top-module $N --trace-fst -cc -O3 --exe -CFLAGS "$(CFLAGS_SDL)" -LDFLAGS "$(LIBS_SDL)" $(INCLUDES) $(SRCS) sim_main.cpp
@@ -114,7 +116,6 @@ $(GHDL_DIR)/GSUMap.v: $(GHDL_CONFIG) $(GSU_VHDL) | $(GHDL_DIR)
 	$(MAKE) -C obj_dir -f V$N.mk V$N
 	cp -a $D/roms obj_dir
 	cp -a $D/chip/DSP/*.hex obj_dir
-	test -s obj_dir/random_4m_words.hex || hexdump -vn8388608 -e '8/2 "%04x ""\n"' /dev/random > obj_dir/random_4m_words.hex
 
 sim: ./obj_dir/V$N
 	@echo

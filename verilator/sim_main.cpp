@@ -129,7 +129,7 @@ int main(int argc, char** argv, char** env) {
     }
 
     sdl_texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_TARGET, H_RES, V_RES);
+        SDL_TEXTUREACCESS_STREAMING, H_RES, V_RES);
     if (!sdl_texture) {
         printf("Texture creation failed: %s\n", SDL_GetError());
         return 1;
@@ -162,8 +162,13 @@ int main(int argc, char** argv, char** env) {
 		}
 		audio_ready_r = snes->audio_ready;
 
-		if (snes->dotclk >= 0 && snes->y_out < V_RES && (snes->x_out >> 1) < H_RES) {
-			Pixel* p = &screenbuffer[snes->y_out*H_RES + (snes->x_out >> 1)];
+		// Y_OUT[8] is the interlace field; both fields use the same SDL rows.
+		const unsigned y = snes->y_out & 0xFF;
+		const int field = snes->y_out & 0x100;
+
+		// if the screen is black consider using !field
+		if (field && y < V_RES && (snes->x_out >> 1) < H_RES) {
+			Pixel* p = &screenbuffer[y*H_RES + (snes->x_out >> 1)];
 			p->a = 0xFF;  // transparency
 			p->b = snes->B_OUT;
 			p->g = snes->G_OUT;
@@ -171,7 +176,7 @@ int main(int argc, char** argv, char** env) {
 		}
 
 		// update texture once per frame (in blanking)
-		if (snes->y_out == V_RES) {
+		if (y == V_RES) {
 			if (!frame_updated) {
 				// check for quit event
 				SDL_Event e;
@@ -181,9 +186,15 @@ int main(int argc, char** argv, char** env) {
 					}
 				}
 				frame_updated = true;
-				SDL_UpdateTexture(sdl_texture, NULL, screenbuffer, H_RES*sizeof(Pixel));
+				if (SDL_UpdateTexture(sdl_texture, NULL, screenbuffer, H_RES*sizeof(Pixel)) < 0) {
+					fprintf(stderr, "Texture update failed: %s\n", SDL_GetError());
+					break;
+				}
 				SDL_RenderClear(sdl_renderer);
-				SDL_RenderCopy(sdl_renderer, sdl_texture, NULL, NULL);
+				if (SDL_RenderCopy(sdl_renderer, sdl_texture, NULL, NULL) < 0) {
+					fprintf(stderr, "Frame render failed: %s\n", SDL_GetError());
+					break;
+				}
 				SDL_RenderPresent(sdl_renderer);
 				frame_count++;
 

@@ -92,6 +92,8 @@ localparam string DEFAULT_FILE = "roms/hello.hex";
 
 reg [7:0] rom [0:MAX_SIZE-1];
 reg [21:0] addr;
+reg finished;
+reg pad_sent;
 integer rom_size;
 integer fd;
 integer line_len;
@@ -122,23 +124,39 @@ initial begin
    $readmemh(file_name, rom, 0, rom_size - 1);
 end
 
-assign loading = ({10'b0, addr} < rom_size);
+// Keep the SNES paused until the final byte has been consumed and its
+// outstanding SDRAM write has been acknowledged. The next-byte address alone
+// reaches rom_size before the final byte is accepted.
+assign loading = !finished;
 assign fail    = 1'b0;
 
 always @(posedge clk, negedge resetn) begin
     if (~resetn) begin
         addr <= 0;
         dout_valid <= 0;
+        finished <= 0;
+        pad_sent <= 0;
 
-    end else if (!dout_valid || dout_ready) begin
-        if ({10'b0, addr} >= rom_size) begin
-            dout_valid <= 0;
-        end else begin
-            dout <= rom[addr];
-            dout_valid <= 1;
-            addr <= addr + 1;
-            if (addr == 63)     // header is 64 bytes long
-                addr <= 512;
+    end else begin
+        if ({10'b0, addr} >= rom_size && !dout_valid && dout_ready)
+            finished <= 1;
+        if (!dout_valid || dout_ready) begin
+            if ({10'b0, addr} >= rom_size) begin
+                if (rom_size > 512 && rom_size[0] && !pad_sent) begin
+                    // The controller writes 16-bit words. Complete an odd
+                    // final byte with an erased-ROM high byte.
+                    dout <= 8'hff;
+                    dout_valid <= 1;
+                    pad_sent <= 1;
+                end else
+                    dout_valid <= 0;
+            end else begin
+                dout <= rom[addr];
+                dout_valid <= 1;
+                addr <= addr + 1;
+                if (addr == 63)     // header is 64 bytes long
+                    addr <= 512;
+            end
         end
     end
 end

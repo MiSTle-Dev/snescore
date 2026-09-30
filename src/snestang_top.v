@@ -163,19 +163,15 @@ wire reset = ~resetn;
 // Simulated clocks for verilator
 assign pll_snes_lock = 1'b1;
 assign pll_hdmi_lock = 1'b1;
-reg [2:0] clk_cnt = 3'b0;       // 0 1 2 3 4 5
-reg mclk_buf;                   // 0 0 0 1 1 1
-assign fclk = clk_cnt[0];       // 0 1 0 1 0 1
-assign mclk = mclk_buf;
-always @(posedge sys_clk) begin
-    clk_cnt <= clk_cnt + 3'b1;
-    if (clk_cnt == 3'd5) begin
-        clk_cnt <= 0;
-        mclk_buf <= 0;
-    end
-    if (clk_cnt == 3'd2)
-        mclk_buf <= 1;
-end
+
+reg [2:0] clk_cnt = 0;          // 0 1 2 3 4 5 6 7
+
+assign mclk   = clk_cnt[2];     // 0 0 0 0 1 1 1 1
+assign fclk   = clk_cnt[0];     // 0 1 0 1 0 1 0 1
+assign fclk_p = ~fclk;          // 1 0 1 0 1 0 1 0
+
+always @(posedge sys_clk)
+    clk_cnt <= clk_cnt + 1;
 
 `elsif LATTICE
 // Clocks for Lattice ECP5
@@ -1257,6 +1253,17 @@ assign led[1] = ~loaded;
 `else
 assign led[0] = resetn;
 assign led[1] = loaded;
+`endif
+
+`ifdef VERILATOR
+sdr_chip_model #(
+    .DATA_WIDTH(SDRAM_DATA_WIDTH),
+    .ROW_WIDTH(SDRAM_ROW_WIDTH)
+) sdram_chip (
+    .clk(O_sdram_clk), .dq(IO_sdram_dq), .addr(O_sdram_addr),
+    .dqm(O_sdram_dqm), .ba(O_sdram_ba), .cs_n(O_sdram_cs_n),
+    .ras_n(O_sdram_ras_n), .cas_n(O_sdram_cas_n), .we_n(O_sdram_wen_n)
+);
 `endif
 
 endmodule
