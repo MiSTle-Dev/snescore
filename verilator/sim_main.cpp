@@ -14,6 +14,12 @@
 #include "verilated.h"
 #include <verilated_fst_c.h>
 
+#ifdef ENABLE_COMPANION
+#include "sd_card_config.h"
+#endif
+
+#define SYS_CLK (21.5054)
+
 #define TRACE_ON
 
 using namespace std;
@@ -32,16 +38,13 @@ typedef struct Pixel {  // for SDL texture
 Pixel screenbuffer[H_RES*V_RES];
 
 bool trace = false;
-// Default 20 million clock cycles
-long long max_sim_time = 20000000LL;
-long long start_trace_time = 0;
 
 void usage() {
 	printf("Usage: sim [-r ROM.hex] [-t] [-c T]\n");
 	printf("  -r FILE load FILE as the SNES ROM (maximum 4 MiB)\n");
 	printf("  -t     output trace file waveform.fst\n");
-	printf("  -s T0  start tracing from time T0\n");
-	printf("  -c T   limit simulate lenght to T time steps. T=0 means infinite.\n");
+	printf("  -s T0  start tracing from time T0 milliseconds\n");
+	printf("  -c T   limit simulate length to T milliseconds. T=0 means infinite.\n");
 }
 
 VerilatedFstC *m_trace;
@@ -49,11 +52,25 @@ Vsnestang_top* top;
 
 // split by spaces
 vector<string> tokenize(string s);
-long long parse_num(string s);
 void trace_on();
 void trace_off();
 
-vluint64_t sim_time;
+#ifdef ENABLE_COMPANION
+Vsnestang_top* tb;  // sd_card expects a global tb
+
+// optionally parse a sector address into track/side/sector
+char *sector_string(int drive, uint32_t lba) {
+  static char str[32];
+  strcpy(str, "");
+  return str;
+}
+#endif
+
+double simulation_time = 0.0;
+// Default 50ms
+double max_sim_time = 0.05;
+double start_trace_time = 0.0;
+
 int main(int argc, char** argv, char** env) {
 	// Accept a conventional option and translate it to the Verilog plusarg
 	// consumed by test_loader. Direct +ROM=... remains supported as well.
@@ -71,9 +88,11 @@ int main(int argc, char** argv, char** env) {
 	for (string& arg : command_strings)
 		command_args.push_back(arg.data());
 	Verilated::commandArgs(command_args.size(), command_args.data());
-
 	Vsnestang_top* new_top = new Vsnestang_top;
 	top = new_top;
+#ifdef ENABLE_COMPANION
+	tb = new_top;
+#endif
 	Vsnestang_top_snestang_top *snes = top->snestang_top;
 	bool frame_updated = false;
 	uint64_t start_ticks = SDL_GetPerformanceCounter();
@@ -86,19 +105,19 @@ int main(int argc, char** argv, char** env) {
 			trace = true;
 			printf("Tracing ON\n");
 		} else if (strcmp(argv[i], "-c") == 0 && i+1 < argc) {
-			max_sim_time = strtoll(argv[++i], &eptr, 10);
+			max_sim_time = strtof(argv[++i], &eptr) / 1000.0;
 			if (max_sim_time == 0)
 				printf("Simulating forever.\n");
 			else
-				printf("Simulating %lld steps\n", max_sim_time);
+				printf("Simulating %.3f ms\n", max_sim_time*1000.0);
 		} else if (strcmp(argv[i], "-r") == 0 && i+1 < argc) {
 			i++;
 			printf("Loading ROM %s\n", argv[i]);
 		} else if (strncmp(argv[i], "+ROM=", 5) == 0) {
 			printf("Loading ROM %s\n", argv[i] + 5);
 		} else if (strcmp(argv[i], "-s") == 0 && i+1 < argc) {
-			start_trace_time = strtoll(argv[++i], &eptr, 10);
-			printf("Start tracing from %lld\n", start_trace_time);
+			start_trace_time = strtof(argv[++i], &eptr) / 1000.0;
+			printf("Start tracing from %.3f ms\n", start_trace_time*1000.0);
 		} else {
 			printf("Unrecognized option: %s\n", argv[i]);
 			usage();
@@ -135,6 +154,10 @@ int main(int argc, char** argv, char** env) {
         return 1;
     }
 
+#ifdef ENABLE_COMPANION
+    sd_init();
+#endif
+    
 	if (trace)
 		trace_on();
 
@@ -142,11 +165,23 @@ int main(int argc, char** argv, char** env) {
 	FILE *f = fopen("snes.aud", "w");
 	long long samples = 0;
 
-	while (max_sim_time == 0 || sim_time < max_sim_time) {
+	while (max_sim_time == 0 || simulation_time < max_sim_time) {
 		top->sys_clk ^= 1;
+
+#ifdef ENABLE_COMPANION
+		// handle sd card emulation on one edge of the 1/6 sys_clk
+		// which in turn is the mclk the sd card itself runs on
+		static int mcnt = 0;
+		if(++mcnt == 12) {
+		  sd_handle();
+		  mcnt = 0;
+		}
+#endif
 		top->eval();
-		if (trace && sim_time >= start_trace_time)
-			m_trace->dump(sim_time);
+		
+		// tracing happens in picoseconds
+		if (trace && simulation_time >= start_trace_time)
+			m_trace->dump(1000000000000 * simulation_time);
 
 		// collect audio sample
 		if (snes->audio_ready && audio_ready_r == 0) {
@@ -157,7 +192,7 @@ int main(int argc, char** argv, char** env) {
 			fwrite(&al, sizeof(al), 1, f);
 			samples ++;
 			if (samples % 1000 == 0)
-				printf("%lld samples\n", samples);
+			  printf("%.3fms %lld samples\n", simulation_time*1000, samples);
 			// printf("%hd %hd\n", top->spcplayer_top->audio_l, top->spcplayer_top->audio_r);
 		}
 		audio_ready_r = snes->audio_ready;
@@ -199,16 +234,16 @@ int main(int argc, char** argv, char** env) {
 				frame_count++;
 
 				if (frame_count % 10 == 0)
-					printf("Frame #%d\n", frame_count);
+				  printf("%.3fms Frame #%d\n", simulation_time*1000, frame_count);
 			}
 		} else
 			frame_updated = false;
 
-		sim_time++;
+		simulation_time += 1.0/1000000/SYS_CLK/12;
 	}
 
 
-    printf("Simulation done, time=%lu\n", sim_time);
+	printf("Simulation done, time=%.3f ms\n", simulation_time*1000.0);
 
 	fclose(f);
 	printf("Audio output to snes.aud done.\n");
@@ -223,7 +258,7 @@ int main(int argc, char** argv, char** env) {
     double fps = (double)frame_count/duration;
     printf("Frames per second: %.1f. Total frames=%d\n", fps, frame_count);
 
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    // std::this_thread::sleep_for(std::chrono::seconds(5));
 
     SDL_DestroyTexture(sdl_texture);
     SDL_DestroyRenderer(sdl_renderer);
@@ -253,27 +288,6 @@ vector<string> tokenize(string s) {
 	if (w.size() > 0)
 		r.push_back(w);
 	return r;
-}
-
-// parse something like 100m or 10k
-// return -1 if there's an error
-long long parse_num(string s) {
-	long long times = 1;
-	if (s.size() == 0)
-		return -1;
-	char last = tolower(s[s.size()-1]);
-	if (last >= 'a' && last <= 'z') {
-		s = s.substr(0, s.size()-1);
-		if (last == 'k')
-		 	times = 1000LL;
-		else if (last == 'm')
-			times = 1000000LL;
-		else if (last == 'g')
-			times = 1000000000LL;
-		else
-			return -1;
-	}
-	return atoll(s.c_str()) * times;
 }
 
 void trace_on() {

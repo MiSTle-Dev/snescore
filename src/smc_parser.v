@@ -1,18 +1,21 @@
 module smc_parser(
-    input clk,
-    input resetn,
+    input	      clk,
+    input	      resetn,
 
-    input [7:0] rom_d,          // feed in snes header and 32 bytes after header
-    input rom_strb,
+    input [7:0]	      rom_d,	// feed in snes header and 32 bytes after header
+    input	      rom_strb,
 
     // ROM meta-data output
-    output reg [7:0] rom_type,          // map_ctrl after further detection like DSP
+    output reg [7:0]  rom_type,	// map_ctrl after further detection like DSP
     output reg [23:0] rom_mask,
     output reg [23:0] ram_mask,
-    output reg [3:0] rom_size,
-    output reg [3:0] ram_size,
+    output reg [3:0]  rom_size,
+    output reg [3:0]  ram_size,
 
-    output reg header_finished
+    output reg	      header_finished
+`ifdef ENABLE_COMPANION		  
+    , output reg      header_ok
+`endif
 );
 
 // 64-byte rom header parsing. The following values are useful:
@@ -32,20 +35,85 @@ always @(posedge clk) begin
     if (~resetn) begin
         cnt <= 0;
         header_finished <= 0;
+`ifdef ENABLE_COMPANION		  
+        header_ok <= 1'b1;
+`endif
     end else if (rom_strb && ~header_finished) begin
         cnt <= cnt + 1;
+
+`ifdef ENABLE_COMPANION
+       if(cnt == 0)
+	 header_ok <= 1'b1;
+       
+       // bytes 0 .. 20 are the ASCII cartridge name
+       // each character mus be zero or in ASCII range. First char must not be zero
+       if(cnt <= 6'd20 && (!cnt || rom_d) && (rom_d < 8'd32 || rom_d > 8'd127 ))
+	 header_ok <= 1'b0;       	 
+
+`endif
+       
         case (cnt)
-        6'h15: mapper_header <= rom_d;
-        6'h16: rom_type_header <= rom_d;
-        6'h17: rom_size <= rom_d[3:0];
-        6'h18: ram_size <= rom_d[3:0];
-        6'h1A: company_header <= rom_d;
-        6'h3F: begin
-            header_finished <= 1;
-            rom_mask <= (24'd1024 << ((rom_size < 4'd7) ? 4'hC : rom_size)) - 1'd1;
-            ram_mask <= ram_size != 0 ? (24'd1024 << ram_size) - 1'd1 : 24'd0;
-        end
-        default: ;
+          6'h00: $display("smc_parser.v: start");
+	  
+          6'h15: begin 
+	     mapper_header <= rom_d;
+             $display("smc_parser.v: mapper=%0d", rom_d);
+	  end
+	  
+          6'h16: begin
+	     rom_type_header <= rom_d;
+             $display("smc_parser.v: rom type=%0d", rom_d);
+	  end
+
+          6'h17: begin
+	     rom_size <= rom_d[3:0];
+             $display("smc_parser.v: rom size=%0d", 1024<<rom_d[3:0]);
+
+`ifdef ENABLE_COMPANION
+	     // max rom size = 1024 * 2^15 = 32MB
+	     // actually biggest commercial cartridge is 6MB
+	     if(rom_d[7:4]) header_ok <= 1'b0;	     
+`endif
+	  end
+	  
+          6'h18: begin
+	     ram_size <= rom_d[3:0];
+             $display("smc_parser.v: ram size=%0d", 1024<<rom_d[3:0]);
+
+`ifdef ENABLE_COMPANION
+	     // max ram size is 128k
+	     if(rom_d[7:3]) header_ok <= 1'b0;	     
+`endif
+	  end
+	     
+          6'h19: begin
+             $display("smc_parser.v: country=%0d", rom_d);
+`ifdef ENABLE_COMPANION
+	     // max country code is $14
+	     if(rom_d > 8'h14) header_ok <= 1'b0;	     
+`endif
+	  end
+
+          6'h1A: begin
+	     company_header <= rom_d;
+             $display("smc_parser.v: company=%0d", rom_d);
+	  end
+	  
+          6'h3F:
+`ifdef ENABLE_COMPANION
+	    // the companion may try different headers. So reset the parser if
+	    // a header wasn't valid. Also don't signal "finished" on failure	    
+	    if(!header_ok) begin
+               cnt <= 0;
+               header_finished <= 0;
+	    end else
+`endif
+	    begin
+             header_finished <= 1;
+             rom_mask <= (24'd1024 << ((rom_size < 4'd7) ? 4'hC : rom_size)) - 1'd1;
+             ram_mask <= ram_size != 0 ? (24'd1024 << ram_size) - 1'd1 : 24'd0;
+          end
+          default: ;
         endcase
     end
 

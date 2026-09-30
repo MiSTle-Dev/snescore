@@ -61,12 +61,25 @@ module snestang_top #(
     output [1:0] led,
 
     // MicroSD
+`ifdef ENABLE_COMPANION
+    output			    sdclk,
+    inout			    sdcmd,
+    inout [3:0]			    sddat, 
+
+    input			    mcu_data_strobe,
+    input			    mcu_data_start,
+    input [7:0]			    mcu_data_in,
+    output [7:0]		    mcu_data_out,
+    output			    mcu_irq,
+    input			    mcu_iack,  
+`else
     output sd_clk,
     inout  sd_cmd,      // MOSI
     input  sd_dat0,     // MISO
     output sd_dat1,
     output sd_dat2,
     output sd_dat3,
+`endif
 
     // SPI flash
     output flash_spi_cs_n,          // chip select
@@ -397,6 +410,10 @@ wire [7:0] loader_do;
 wire loader_do_valid, loader_do_ready;
 wire loading, header_finished;
 
+`ifdef ENABLE_COMPANION
+wire header_ok;
+`endif
+   
 reg loaded;
 
 reg [22:0] loader_addr = 0;
@@ -842,6 +859,9 @@ smc_parser smc (
     .rom_d(loader_do), .rom_strb(loader_do_valid),
     .rom_type(rom_type), .rom_mask(rom_mask), .ram_mask(ram_mask),
     .rom_size(rom_size), .ram_size(ram_size),
+`ifdef ENABLE_COMPANION		  
+    .header_ok(header_ok),
+`endif
     .header_finished(header_finished)
 );
 
@@ -1196,13 +1216,34 @@ end
 
 `else       // VERILATOR
 
+`ifdef ENABLE_COMPANION
+companion companion 
+   (
+    .clk(mclk), .resetn(resetn),
+
+    .sd_clk(sdclk), .sd_cmd(sdcmd), .sd_dat(sddat),
+
+    .mcu_data_strobe(mcu_data_strobe),
+    .mcu_data_start(mcu_data_start),
+    .mcu_data_in(mcu_data_in),
+    .mcu_data_out(mcu_data_out),
+    .mcu_irq(mcu_irq),
+    .mcu_iack(mcu_iack),        
+    
+    .dout(loader_do), .dout_valid(loader_do_valid), .dout_ready(loader_do_ready),
+    .loading(loading),
+
+    .header_ok(header_ok)
+);   
+`else
 // test loader with embedded rom
 test_loader test_loader (
     .clk(mclk), .resetn(resetn),
     .dout(loader_do), .dout_valid(loader_do_valid), .dout_ready(loader_do_ready),
     .loading(loading), .fail()
 );
-
+`endif
+		     
 // test audio sink: FIFO-like rate limiting to sound sample generation
 reg [3:0] sample_counter = 0;
 

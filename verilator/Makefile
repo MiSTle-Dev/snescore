@@ -1,6 +1,9 @@
 N=snestang_top
 D=../src
 
+# enable the simulation of the companion sd card
+# COMPANION=1
+
 GHDL ?= ghdl
 GHDL_FLAGS = --std=08 --latches --out=verilog -fsynopsys
 GHDL_DIR = obj_dir/ghdl
@@ -42,6 +45,22 @@ SRCS = $D/verilator/test_loader.v $D/verilator/sdr_chip_model.v \
 # Optional compile-time default; at runtime use: ./Vsnestang_top -r roms/game.hex
 ifneq ($(ROM_FILE),)
 VERILATOR_FLAGS += -DSIM_ROM_FILE=\"$(ROM_FILE)\"
+endif
+
+SRCS += sim_main.cpp
+DEPS = Makefile
+
+ifndef COMPANION
+# simple test loader with hex cart hard coded
+SRCS += $D/verilator/test_loader.v
+else
+# mistle companion variant using simulated sd card to load rom
+SRCS += $D/mistle/companion.v $D/mistle/sd_card.v $D/mistle/sd_rw.v $D/mistle/sdcmd_ctrl.v
+VERILATOR_FLAGS += --pins-inout-enables
+VERILATOR_FLAGS += -DENABLE_COMPANION -DINFER_DPRAM
+EXTRA_CFLAGS = -DENABLE_COMPANION
+SRCS += sd_card.cpp
+DEPS += sd_card_config.h
 endif
 
 INCLUDES=-I$D/verilator -I$D -I$D/spc700 -I$D/65C816
@@ -105,10 +124,11 @@ $(GHDL_DIR)/GSUMap.v: $(GHDL_CONFIG) $(GSU_VHDL) | $(GHDL_DIR)
 ./obj_dir:
 	mkdir -p obj_dir
 
-./obj_dir/V$N.cpp: Makefile sim_main.cpp $(VERILOG_CONFIG) $(SRCS)
+./obj_dir/V$N.cpp: $(DEPS) $(VERILOG_CONFIG) $(SRCS)
 	@echo
 	@echo "### VERILATE ####"
-	verilator $(VERILATOR_FLAGS) --top-module $N --trace-fst -cc -O3 --exe -CFLAGS "$(CFLAGS_SDL)" -LDFLAGS "$(LIBS_SDL)" $(INCLUDES) $(SRCS) sim_main.cpp
+	mkdir -p obj_dir
+	verilator $(VERILATOR_FLAGS) --top-module $N --trace-fst -cc -O3 --exe -CFLAGS "$(CFLAGS_SDL) $(EXTRA_CFLAGS)" -LDFLAGS "$(LIBS_SDL)" $(INCLUDES) $(SRCS)
 
 ./obj_dir/V$N: verilate
 	@echo
@@ -120,20 +140,20 @@ $(GHDL_DIR)/GSUMap.v: $(GHDL_CONFIG) $(GSU_VHDL) | $(GHDL_DIR)
 sim: ./obj_dir/V$N
 	@echo
 	@echo "### SIMULATION (GUI) ###"
-	@cd obj_dir && ./V$N -c 400000000
+	@cd obj_dir && ./V$N -c 0
 
 trace: ./obj_dir/V$N
 	@echo
 	@echo "### SIMULATION (trace) ###"
-	@cd obj_dir && ./V$N -t -c 100000000 2> stderr.log
+	@cd obj_dir && ./V$N -t -c 100 2> stderr.log
 
-trace2: ./obj_dir/V$N
+./obj_dir/waveform.fst: ./obj_dir/V$N Makefile
 	@echo
 	@echo "### SIMULATION (trace) ###"
-	@cd obj_dir && ./V$N -t -c 3000000000 -s 300000000
+	@cd obj_dir && ./V$N -t -c 10
 
-gtkwave:
-	gtkwave obj_dir/waveform.vcd
+wave: obj_dir/waveform.fst
+	gtkwave sim.gtkw
 
 audio:
 	ffmpeg -y -f s16le -ar 32k -ac 2 -i obj_dir/snes.aud snes.wav
