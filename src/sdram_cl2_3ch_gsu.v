@@ -25,8 +25,8 @@
 //
 // As can be seen, there are two schedules depending on operations by the first two channels
 // (ROM/WRAM/BSRAM/RiscV, and ARAM):
-// - Normal schedule:     READ-READ, WRITE-READ, WRITE-WRITE
-// - Delayed write:       READ-WRITE
+// - Normal schedule: READ-READ, WRITE-READ, WRITE-WRITE
+// - Delayed write: READ-WRITE
 //
 // Requests are placed using the "multi-cycle req-ack handshake", borrowed from the MIST
 // sdram controller. Whenever a new request is needed, the host readies the addr/din/we lines,
@@ -105,6 +105,7 @@ module sdram_snes_gsu
     output wire [15:0] bsram_dout,
     input             bsram_req,
     output reg        bsram_req_ack,
+    output reg        bsram_done,
     input             bsram_we,
 
     // ARAM access uses bank 2
@@ -373,7 +374,11 @@ assign bsram_dout = (cycle[4] && oe_latch[0] && port[0] == PORT_BSRAM) ? dq_in :
 reg [14:0] rst_cnt;
 reg        rst_done;
 
+`ifdef VERILATOR
+localparam integer RST_DELAY = 0;
+`else
 localparam integer RST_DELAY = (200 * FREQ) / 1000000;  // 200us
+`endif
 
 always @(posedge clk, negedge resetn) begin
     if (~resetn) begin
@@ -395,17 +400,18 @@ always @(posedge clk, negedge resetn) begin
         normal <= 0;
         setup <= 0;
         refresh_cnt <= 0;
+        rv_stall <= 0;
         dq_oen <= 1;
         SDRAM_DQM <= 2'b0;
         cpu_req_ack <= 0;
         bsram_req_ack <= 0;
+        bsram_done <= 0;
         aram_req_ack <= 0;
         vram1_ack <= 0;
         vram2_ack <= 0;
         rv_req_ack <= 0;
         gsu_req_ack <= 0;
         gsu_done <= 0;
-        rv_stall <= 0;
     end else begin
         // defaults
         dq_oen <= 1'b1;
@@ -530,10 +536,16 @@ always @(posedge clk, negedge resetn) begin
             end
             if (cycle[2]) begin
                 case (port[0])
-                PORT_CPU:   cpu_req_ack <= cpu_req;
-                PORT_BSRAM: bsram_req_ack <= bsram_req;
-                PORT_RV:    rv_req_ack <= rv_req;
-                PORT_GSU:   gsu_req_ack <= gsu_req;
+                PORT_CPU: cpu_req_ack <= cpu_req;
+                PORT_BSRAM: begin
+                    bsram_req_ack <= bsram_req;
+                    if (we_latch[0]) bsram_done <= ~bsram_done;
+                end
+                PORT_GSU: begin
+                    gsu_req_ack <= gsu_req;
+                    if (we_latch[0]) gsu_done <= ~gsu_done;
+                end
+                PORT_RV: rv_req_ack <= rv_req;
                 default: ;
                 endcase
             end
@@ -567,9 +579,9 @@ always @(posedge clk, negedge resetn) begin
             end
             if(cycle[7]) begin
                 case (port[2])
-                    PORT_VRAM:   { vram1_ack, vram2_ack } <= { vram1_req, vram2_req };
-                    PORT_VRAM1:  vram1_ack <= vram1_req;
-                    PORT_VRAM2:  vram2_ack <= vram2_req;
+                    PORT_VRAM: { vram1_ack, vram2_ack } <= { vram1_req, vram2_req };
+                    PORT_VRAM1: vram1_ack <= vram1_req;
+                    PORT_VRAM2: vram2_ack <= vram2_req;
                     default: ;
                 endcase
             end
@@ -578,15 +590,20 @@ always @(posedge clk, negedge resetn) begin
             // ROM, WRAM, BSRAM and RV
             if (cycle[5] && oe_latch[0]) begin
                 case (port[0])
-                PORT_CPU:   if (cpu_port_latch) cpu_port1 <= dq_in; else cpu_port0 <= dq_in;
+                PORT_CPU: if (cpu_port_latch) cpu_port1 <= dq_in; else cpu_port0 <= dq_in;
                 PORT_BSRAM: bsram_dout_reg <= dq_in;
-                PORT_RV:    rv_dout <= dq_in;
-                PORT_GSU:   gsu_dout <= dq_in;
+                PORT_GSU: gsu_dout <= dq_in;
+                PORT_RV: rv_dout <= dq_in;
                 default: ;
                 endcase
             end
-            if (cycle[5] && port[0] == PORT_GSU)
-                gsu_done <= ~gsu_done;
+            if (cycle[7] && oe_latch[0] && ~we_latch[0]) begin
+                case (port[0])
+                PORT_BSRAM: bsram_done <= ~bsram_done;
+                PORT_GSU: gsu_done <= ~gsu_done;
+                default: ;
+                endcase
+            end
 
             // ARAM
             if (cycle[6] && oe_latch[1]) aram_dout <= dq_in;

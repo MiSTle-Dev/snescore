@@ -353,7 +353,11 @@ assign bsram_dout = (cycle[4] && oe_latch[0] && port[0] == PORT_BSRAM) ? dq_in :
 reg [14:0] rst_cnt;
 reg        rst_done;
 
+`ifdef VERILATOR
+localparam integer RST_DELAY = 0;
+`else
 localparam integer RST_DELAY = (200 * FREQ) / 1000000;  // 200us
+`endif
 
 always @(posedge clk, negedge resetn) begin
     if (~resetn) begin
