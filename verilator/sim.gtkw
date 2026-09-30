@@ -1,0 +1,83 @@
+[*]
+[*] GTKWave Analyzer v3.3.126 (w)1999-2026 BSI
+[*] Wed Sep 30 15:26:44 2026
+[*]
+[dumpfile] "obj_dir/waveform.fst"
+[dumpfile_mtime] "Wed Sep 30 15:26:27 2026"
+[dumpfile_size] 3892858
+[savefile] "sim.gtkw"
+[timestart] 2797600000
+[size] 2166 1260
+[pos] 156 121
+*-26.800001 3127098310 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.snestang_top.
+[treeopen] TOP.snestang_top.companion.sd_card.sd_rw.
+[treeopen] TOP.snestang_top.main.genblk2.DSP_LHRomMap.
+[treeopen] TOP.snestang_top.main.SNES.cpu.p65c816.
+[sst_width] 420
+[signals_width] 206
+[sst_expanded] 1
+[sst_vpaned_height] 707
+@28
+TOP.snestang_top.sys_clk
+TOP.snestang_top.reset
+TOP.snestang_top.resetn
+TOP.snestang_top.sdram.cycle
+@24
+TOP.snestang_top.loading
+TOP.snestang_top.loader_addr[22:0]
+@22
+TOP.snestang_top.loader_do[7:0]
+[color] 1
+TOP.snestang_top.sdram.cpu_din[15:0]
+@28
+TOP.snestang_top.sdram.cpu_ds[1:0]
+@100022
+TOP.snestang_top.sdram.cpu_addr[22:1]
+@22
+TOP.snestang_top.main.SNES.cpu.p65c816.d_in[7:0]
+TOP.snestang_top.main.SNES.cpu.p65c816.d_out[7:0]
+TOP.snestang_top.main.SNES.cpu.p65c816.addr_bus[23:0]
+@28
+TOP.snestang_top.sdram.cpu_we
+TOP.snestang_top.sdram.cpu_req
+@22
+TOP.snestang_top.ROM_ADDR[23:0]
+TOP.snestang_top.main.genblk2.DSP_LHRomMap.CA[23:0]
+@28
+TOP.snestang_top.companion.sd_card.sdclk
+TOP.snestang_top.companion.sd_card.sdcmd
+@22
+TOP.snestang_top.companion.sd_card.sddat[3:0]
+@24
+TOP.snestang_top.companion.state[2:0]
+@22
+TOP.snestang_top.companion.image_mounted[7:0]
+TOP.snestang_top.companion.image_size[63:0]
+@28
+TOP.snestang_top.companion.sd_rd
+@22
+TOP.snestang_top.companion.sd_sector[31:0]
+@28
+TOP.snestang_top.companion.sd_done
+TOP.snestang_top.companion.sd_card.clk
+@24
+[color] 2
+TOP.snestang_top.companion.state[2:0]
+@28
+TOP.snestang_top.companion.sd_outen
+@22
+TOP.snestang_top.companion.sd_outdata[7:0]
+@24
+TOP.snestang_top.companion.rom_data_sectors[15:0]
+@28
+TOP.snestang_top.companion.dout_valid
+@22
+TOP.snestang_top.companion.dout[7:0]
+@28
+TOP.snestang_top.companion.header_ok
+@23
+TOP.snestang_top.smc.cnt[5:0]
+[pattern_trace] 1
+[pattern_trace] 0
