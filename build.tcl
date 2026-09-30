@@ -48,7 +48,6 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/primer25k/gowin_pll_27.v"
     add_file -type verilog "src/primer25k/gowin_pll_hdmi.v"
     add_file -type verilog "src/primer25k/gowin_pll_snes.v"
-    add_file -type verilog "src/sdram_cl2_3ch.v"
     set_option -output_base_name snestang_${dev}_${controller}
 } elseif {$dev eq "mistle_gw5a_25"} {
     set_device GW5A-LV25LQ144C1/I0 -device_version A
@@ -61,6 +60,7 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/mistle_gw5a_25/gowin_pll_hdmi.v"
     add_file -type verilog "src/mistle_gw5a_25/gowin_pll_snes.v"
     add_file -type verilog "src/sdram_cl2_3ch.v"
+    add_file -type verilog "src/bsram_cache.v"
     add_file -type verilog "src/mistle/companion.v"
     add_file -type verilog "src/mistle/mcu_spi.v"
     add_file -type verilog "src/mistle/sysctrl.v"
@@ -201,6 +201,7 @@ if {$mcu eq "bl616"} {
 add_file -type verilog "src/rst_sync.v"
 add_file -type vhdl "src/dpram.vhd"
 add_file -type vhdl "src/spram.vhd"
+add_file -type vhdl "src/dpram_difclk.vhd"
 add_file -type vhdl "src/65C816/ALU.vhd"
 add_file -type vhdl "src/65C816/AddSubBCD.vhd"
 add_file -type vhdl "src/65C816/AddrGen.vhd"
@@ -254,6 +255,10 @@ add_file -type vhdl "src/chip/DSP/DSP_LHRomMap.vhd"
 add_file -type vhdl "src/chip/DSP/DSPn.vhd"
 add_file -type vhdl "src/chip/DSP/OBC1.vhd"
 add_file -type vhdl "src/chip/SRTC.vhd"
+add_file -type vhdl "src/chip/GSU/GSUMap.vhd"
+add_file -type vhdl "src/chip/GSU/GSU_PKG.vhd"
+add_file -type vhdl "src/chip/GSU/GSU.vhd"
+
 add_file -type vhdl "src/SWRAM.vhd"
 add_file -type verilog "src/uart_tx_V2.v"
 add_file -type sdc "src/snestang.sdc"

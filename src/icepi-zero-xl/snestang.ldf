@@ -30,7 +30,10 @@
         <Source name="ecp5_hdmi_pll.v" type="Verilog" type_short="Verilog">
             <Options/>
         </Source>
-        <Source name="../sdram_cl2_3ch_gsu.v" type="Verilog" type_short="Verilog">
+        <Source name="../sdram_cl2_3ch.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../bsram_cache.v" type="Verilog" type_short="Verilog">
             <Options/>
         </Source>
         <Source name="../dpram.vhd" type="VHDL" type_short="VHDL">

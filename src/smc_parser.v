@@ -29,7 +29,6 @@ reg [5:0] cnt;
 reg [7:0] mapper_header;            // raw map_ctrl from the ROM
 reg [7:0] company_header;
 reg [7:0] rom_type_header;
-reg [1:0] rom_header_old;
 
 always @(posedge clk) begin
     if (~resetn) begin

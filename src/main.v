@@ -22,6 +22,7 @@ module main (
 	output reg        ROM_OE_N,
 	output reg        ROM_WE_N,
 	output reg        ROM_WORD,
+	input wire        ROM_DONE,
 
 	output reg [19:0] BSRAM_ADDR,
 	output reg  [7:0] BSRAM_D,
@@ -29,7 +30,8 @@ module main (
 	output reg        BSRAM_CE_N,
 	output reg        BSRAM_OE_N,
 	output reg        BSRAM_WE_N,
-    output wire       BSRAM_RD_N,
+	output wire       BSRAM_RD_N,
+	input wire        BSRAM_DONE,
 
 	output     [16:0] WRAM_ADDR,
 	output      [7:0] WRAM_D,
@@ -57,14 +59,10 @@ module main (
 	output reg        ARAM_WE_N,
 
 	output            GSU_ACTIVE,
-	output     [22:0] GSU_ROM_ADDR,
-	output            GSU_ROM_REQ,
-	output            GSU_ROM_OWNED,
-	input             GSU_ROM_ACCEPT,
-	input             GSU_ROM_DONE,
-	input       [7:0] GSU_ROM_Q,
 	input             GSU_TURBO,
 	input             GSU_FASTROM,
+	output            GSU_RAM_ACCESS,
+	output            GSU_ROM_ACCESS,
 	input             SUFAMI_SWAP,
 	input       [7:0] CC_DIP,
 
@@ -183,6 +181,7 @@ wire        PAWR_N;
 //wire        SYSCLKR_CE;
 //wire        REFRESH;
 wire CPURD_CYC_N;
+wire PARD_CYC_N;
 
 wire  [15:0] SNES_ARAM_ADDR;
 wire   [7:0] SNES_ARAM_D;
@@ -240,7 +239,8 @@ SNES SNES
 	.SYSCLKR_CE(SYSCLKR_CE),
 
 	.REFRESH(REFRESH),
-    .CPURD_CYC_N(CPURD_CYC_N),
+	.CPURD_CYC_N(CPURD_CYC_N),
+	.PARD_CYC_N(PARD_CYC_N),
 
 	.DOT_CLK_CE(DOT_CLK_CE),
 
@@ -620,7 +620,7 @@ endgenerate
 
 wire [7:0]  GSU_DO;
 wire        GSU_IRQ_N;
-wire [22:0] gsu_map_rom_addr;
+wire [22:0] GSU_ROM_ADDR;
 wire        GSU_ROM_CE_N;
 wire        GSU_ROM_OE_N;
 wire        GSU_ROM_WORD;
@@ -629,6 +629,7 @@ wire [7:0]  GSU_BSRAM_D;
 wire        GSU_BSRAM_CE_N;
 wire        GSU_BSRAM_OE_N;
 wire        GSU_BSRAM_WE_N;
+wire        GSU_BSRAM_RD_N;
 
 generate
 if (USE_GSU == 1'b1) begin
@@ -658,12 +659,12 @@ GSUMap GSUMap
 
 	.IRQ_N(GSU_IRQ_N),
 
-	.ROM_ADDR(gsu_map_rom_addr),
+	.ROM_ADDR(GSU_ROM_ADDR),
 	.ROM_Q(ROM_Q),
-	.GSU_ROM_Q(GSU_ROM_Q),
 	.ROM_CE_N(GSU_ROM_CE_N),
 	.ROM_OE_N(GSU_ROM_OE_N),
 	.ROM_WORD(GSU_ROM_WORD),
+	.ROM_DONE(ROM_DONE),
 
 	.BSRAM_ADDR(GSU_BSRAM_ADDR),
 	.BSRAM_D(GSU_BSRAM_D),
@@ -671,6 +672,8 @@ GSUMap GSUMap
 	.BSRAM_CE_N(GSU_BSRAM_CE_N),
 	.BSRAM_OE_N(GSU_BSRAM_OE_N),
 	.BSRAM_WE_N(GSU_BSRAM_WE_N),
+	.BSRAM_RD_N(GSU_BSRAM_RD_N),
+	.BSRAM_DONE(BSRAM_DONE),
 
 	.MAP_ACTIVE(MAP_ACTIVE[2]),
 	.MAP_CTRL(ROM_TYPE),
@@ -678,18 +681,18 @@ GSUMap GSUMap
 	.BSRAM_MASK(RAM_MASK),
 
 	.TURBO(GSU_TURBO),
-	.ROM_REQ(GSU_ROM_REQ),
-	.ROM_OWNED(GSU_ROM_OWNED),
-	.ROM_ACCEPT(GSU_ROM_ACCEPT),
-	.ROM_DONE(GSU_ROM_DONE)
+
+	.CPURD_CYC_N(CPURD_CYC_N),
+	.PARD_CYC_N(PARD_CYC_N),
+
+	.GSU_RAM_ACCESS(GSU_RAM_ACCESS),
+	.GSU_ROM_ACCESS(GSU_ROM_ACCESS)
 );
-assign GSU_ROM_ADDR = gsu_map_rom_addr;
 assign SS_GSU_DI = 8'h00;
 end else begin
 assign MAP_ACTIVE[2] = 0;
-assign GSU_ROM_ADDR = 0;
-assign GSU_ROM_REQ = 0;
-assign GSU_ROM_OWNED = 0;
+assign GSU_RAM_ACCESS = 0;
+assign GSU_ROM_ACCESS = 0;
 assign SS_GSU_DI = 8'h00;
 end
 endgenerate
@@ -1080,7 +1083,7 @@ assign SS_AVAIL = ~|{ROM_TYPE[7:4]} | MAP_ACTIVE[3] | (ROM_TYPE[7:6] == 2'b10) |
 
 assign TURBO_ALLOW = ~(MAP_ACTIVE[3] | MAP_ACTIVE[1] | SS_BUSY);
 
-assign BSRAM_RD_N = CPURD_CYC_N;
+assign BSRAM_RD_N = GSU_ACTIVE ? GSU_BSRAM_RD_N : CPURD_CYC_N;
 
 always @(*) begin
 	case (MAP_ACTIVE)
@@ -1122,7 +1125,7 @@ always @(*) begin
 		begin
 			DI         = GSU_DO;
 			IRQ_N      = GSU_IRQ_N;
-			ROM_ADDR   = {1'b0,gsu_map_rom_addr};
+			ROM_ADDR   = {1'b0,GSU_ROM_ADDR};
 			ROM_D      = 16'h0000;
 			ROM_CE_N   = GSU_ROM_CE_N;
 			ROM_OE_N   = GSU_ROM_OE_N;

@@ -18,8 +18,9 @@ create_clock -name mcu_clk -period 50 -waveform {0 25} [get_ports {mcu_clk}] -ad
 // SNES to sdram, 3*fclk
 set_multicycle_path 3 -setup -end -from [get_clocks {mclk}] -to [get_clocks {fclk}]
 set_multicycle_path 2 -hold -end -from [get_clocks {mclk}] -to [get_clocks {fclk}]
-// Except vram?_req for refresh
-set_multicycle_path 1 -setup -end -from [get_nets {vram?_req}] -to [get_clocks {fclk}]
+
+// SNES to BSRAM cache, 1*fclk
+set_multicycle_path 1 -setup -end -from [get_nets {bsram_*}] -to [get_clocks {fclk}]
 
 // sdram to SNES
 set_multicycle_path 3 -setup -start -from [get_clocks {fclk}] -to [get_clocks {mclk}]
@@ -32,6 +33,7 @@ set_multicycle_path 2 -hold -start -from [get_clocks {fclk}] -to [get_clocks {mc
 // false paths
 //set_false_path -from [get_clocks {uclk}] -to [get_clocks {mclk}]
 //set_false_path -from [get_regs {main/SNES/smp/CPUO*}] -to [get_regs {sdram/dq_out*}]
+set_false_path -from [get_nets {smc_*}]
 
 // The hdmi audio sample words cross from the 48kHz audio clock into the pixel
 // clock domain through a toggle handshake: the data is written a full audio

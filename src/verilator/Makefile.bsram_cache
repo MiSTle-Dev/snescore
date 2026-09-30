@@ -1,0 +1,16 @@
+# Run from anywhere: make -C path/to/src/verilator -f Makefile.bsram_cache test
+IVERILOG ?= iverilog
+VVP ?= vvp
+BUILD_DIR ?= /tmp/snestang-bsram-cache
+SEEDS ?= 1 42 20261002
+OPS ?= 4000
+TEST := $(BUILD_DIR)/tb_bsram_cache
+SOURCES := ../bsram_cache.v bsram_sdram_model.sv tb_bsram_cache.sv
+
+.PHONY: test
+test: $(TEST)
+	@set -e; for seed in $(SEEDS); do $(VVP) $(TEST) +SEED=$$seed +OPS=$(OPS); done
+
+$(TEST): $(SOURCES) Makefile.bsram_cache
+	mkdir -p $(BUILD_DIR)
+	$(IVERILOG) -g2012 -Wall -Wno-timescale -s tb_bsram_cache -o $@ $(SOURCES)

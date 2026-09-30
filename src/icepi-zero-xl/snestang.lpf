@@ -278,10 +278,14 @@ BLOCK PATH FROM CLKNET "uclk" TO CLKNET "hclk5";
 MULTICYCLE FROM CLKNET "mclk" TO CLKNET "fclk" 3X ;
 MULTICYCLE FROM CLKNET "fclk" TO CLKNET "mclk" 3X_SOURCE ;
 
-MULTICYCLE FROM CELL "vram*_req" TO CELL "*" 1X ;
-
 BLOCK PATH TO CELL "*packet_picker/audio_clock_regeneration_packet/clk_audio_counter_wrap_synchronizer_chain*" ;
 BLOCK PATH FROM CELL "*packet_picker/audio_sample_word_transfer*" ;
+
+BLOCK PATH FROM CELL "*smc/ram_mask*" ;
+BLOCK PATH FROM CELL "*smc/ram_size*" ;
+BLOCK PATH FROM CELL "*smc/rom_mask*" ;
+BLOCK PATH FROM CELL "*smc/rom_size*" ;
+BLOCK PATH FROM CELL "*smc/rom_type*" ;
 
 CLOCK_TO_OUT PORT "O_sdram_cs_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
 CLOCK_TO_OUT PORT "O_sdram_addr*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;

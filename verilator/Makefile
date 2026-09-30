@@ -33,7 +33,7 @@ GHDL_SRCS = $(GHDL_DIR)/DSP.v $(GHDL_DIR)/SMP.v $(GHDL_DIR)/SPPU.v \
 	$(GHDL_DIR)/DSPn.v $(GHDL_DIR)/DSP_LHRomMap.v \
 	$(GHDL_DIR)/GSU.v $(GHDL_DIR)/GSUMap.v
 SRCS = $D/verilator/test_loader.v $D/verilator/sdr_chip_model.v \
-	$D/sdram_cl2_3ch.v $D/sdram_cl2_3ch_gsu.v \
+	$D/bsram_cache.v $D/sdram_cl2_3ch.v \
 	$D/verilator/dpram.v $D/verilator/dpram_difclk.v $D/verilator/bsram_bram.v \
 	$D/verilator/spram.v \
 	$D/snestang_top.v $D/rst_sync.v $D/main.v \

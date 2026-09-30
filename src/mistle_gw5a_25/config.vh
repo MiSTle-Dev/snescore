@@ -4,8 +4,9 @@
 
 `define SDRAM_3CH
 // `define BSRAM_BRAM
+`define BSRAM_CACHE
 `define CHIP_DSPn
-// `define CHIP_GSU
+`define CHIP_GSU
 
 // enable the individual controller interfaces
 // `define CONTROLLER_SNES

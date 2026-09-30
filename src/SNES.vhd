@@ -34,6 +34,7 @@ entity SNES is
 		DOT_CLK_CE	: out std_logic;
 
 		CPURD_CYC_N	: out std_logic;
+		PARD_CYC_N	: out std_logic;
 
 		REFRESH		: out std_logic;
 
@@ -494,6 +495,7 @@ begin
 	SYSCLKR_CE <= INT_SYSCLKR_CE;
 
 	CPURD_CYC_N <= INT_CPURD_CYC_N;
+	PARD_CYC_N <= INT_PARD_CYC_N;
 
 	JOY1_P6 <= JPIO67(6);
 	JOY2_P6 <= JPIO67(7);

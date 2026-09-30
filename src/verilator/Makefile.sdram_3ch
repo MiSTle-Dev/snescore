@@ -1,0 +1,20 @@
+IVERILOG ?= iverilog
+VVP ?= vvp
+BUILD_DIR ?= /tmp/snestang-sdram-3ch
+SOURCES := ../sdram_cl2_3ch.v tb_sdram_3ch_shared.sv
+TESTS := $(foreach bank,4 8,$(foreach bs,0 1,$(foreach rom,0 1,$(BUILD_DIR)/bank$(bank)-bs$(bs)-rom$(rom))))
+.PHONY: test
+test: $(TESTS)
+	@set -e; for test in $(TESTS); do $(VVP) $$test; done
+$(BUILD_DIR)/bank4-bs%-rom0: $(SOURCES) Makefile.sdram_3ch
+	mkdir -p $(BUILD_DIR)
+	$(IVERILOG) -g2012 -Wall -Wno-timescale -DVERILATOR -DSDRAM_16M -s tb_sdram_3ch_shared -Ptb_sdram_3ch_shared.DONE_DELAY=$* -Ptb_sdram_3ch_shared.ROM_DELAY=0 -o $@ $(SOURCES)
+$(BUILD_DIR)/bank4-bs%-rom1: $(SOURCES) Makefile.sdram_3ch
+	mkdir -p $(BUILD_DIR)
+	$(IVERILOG) -g2012 -Wall -Wno-timescale -DVERILATOR -DSDRAM_16M -s tb_sdram_3ch_shared -Ptb_sdram_3ch_shared.DONE_DELAY=$* -Ptb_sdram_3ch_shared.ROM_DELAY=1 -o $@ $(SOURCES)
+$(BUILD_DIR)/bank8-bs%-rom0: $(SOURCES) Makefile.sdram_3ch
+	mkdir -p $(BUILD_DIR)
+	$(IVERILOG) -g2012 -Wall -Wno-timescale -DVERILATOR -s tb_sdram_3ch_shared -Ptb_sdram_3ch_shared.DONE_DELAY=$* -Ptb_sdram_3ch_shared.ROM_DELAY=0 -o $@ $(SOURCES)
+$(BUILD_DIR)/bank8-bs%-rom1: $(SOURCES) Makefile.sdram_3ch
+	mkdir -p $(BUILD_DIR)
+	$(IVERILOG) -g2012 -Wall -Wno-timescale -DVERILATOR -s tb_sdram_3ch_shared -Ptb_sdram_3ch_shared.DONE_DELAY=$* -Ptb_sdram_3ch_shared.ROM_DELAY=1 -o $@ $(SOURCES)

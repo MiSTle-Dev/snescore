@@ -7,6 +7,7 @@
 
 `define SDRAM_3CH
 // `define BSRAM_BRAM
+// `define BSRAM_CACHE
 `define CHIP_DSPn
 // `define CHIP_GSU
 
