@@ -40,7 +40,13 @@ Pixel screenbuffer[H_RES*V_RES];
 bool trace = false;
 
 void usage() {
-	printf("Usage: sim [-r ROM.hex] [-t] [-c T]\n");
+	printf("Usage: sim [-r ROM."
+#ifdef ENABLE_COMPANION	       
+	       "sfc/smc"
+#else
+	       "hex"
+#endif
+	       "] [-t] [-c T]\n");
 	printf("  -r FILE load FILE as the SNES ROM (maximum 4 MiB)\n");
 	printf("  -t     output trace file waveform.fst\n");
 	printf("  -s T0  start tracing from time T0 milliseconds\n");
@@ -80,7 +86,11 @@ int main(int argc, char** argv, char** env) {
 	command_args.reserve(argc + 1);
 	for (int i = 0; i < argc; i++) {
 		if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
+#ifdef ENABLE_COMPANION
+			sd_set_file(0, argv[++i]);
+#else
 			command_strings.emplace_back(string("+ROM=") + argv[++i]);
+#endif
 		} else {
 			command_strings.emplace_back(argv[i]);
 		}
@@ -210,16 +220,18 @@ int main(int argc, char** argv, char** env) {
 			p->r = snes->R_OUT;
 		}
 
+		// check for quit event
+		static int poll_cnt = 0;
+		if(poll_cnt++ == 10000) {
+			SDL_Event e;
+			if ((SDL_PollEvent(&e)) && (e.type == SDL_QUIT))
+					break;
+			poll_cnt = 0;
+		}
+
 		// update texture once per frame (in blanking)
 		if (y == V_RES) {
 			if (!frame_updated) {
-				// check for quit event
-				SDL_Event e;
-				if (SDL_PollEvent(&e)) {
-					if (e.type == SDL_QUIT) {
-						break;
-					}
-				}
 				frame_updated = true;
 				if (SDL_UpdateTexture(sdl_texture, NULL, screenbuffer, H_RES*sizeof(Pixel)) < 0) {
 					fprintf(stderr, "Texture update failed: %s\n", SDL_GetError());

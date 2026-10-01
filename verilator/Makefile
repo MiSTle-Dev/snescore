@@ -1,8 +1,7 @@
 N=snestang_top
 D=../src
 
-# enable the simulation of the companion sd card
-# COMPANION=1
+COMPANION=1
 
 GHDL ?= ghdl
 GHDL_FLAGS = --std=08 --latches --out=verilog -fsynopsys

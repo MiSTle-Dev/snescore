@@ -14,9 +14,11 @@ const char *file_image[8] = {
   // "../../src/roms/superbomberman.sfc",  // w/o  -"-
   NULL, NULL, NULL, NULL, NULL, NULL, NULL            // unused
 };
+#else
+extern char *file_image[8];
 #endif
 
-#define MAX_DRIVES   6   // DF0-3/DH0-1
+#define MAX_DRIVES   1  // one cartridge
 
 // enable to test direct mapping bypassing the companion if possible
 #define ENABLE_DIRECT_MAP
@@ -32,6 +34,8 @@ const char *file_image[8] = {
 void sd_init(void);
 void sd_handle(void);
 void sd_get_sector(int drive, int lba, uint8_t *data);
+
+inline void sd_set_file(int i, char *name) { file_image[i] = name; };
 
 void hexdump(void *data, int size);
 void hexdiff(void *data1, void *data2, int size);

@@ -120,6 +120,11 @@ initial begin
        $display("ERROR: ROM %s has %0d bytes; maximum is %0d", file_name, rom_size, MAX_SIZE);
        $finish;
    end
+   if (!(rom_size & 512)) begin
+       $display("ERROR: ROM %s is missing the 512 byte rom header", file_name);
+       $finish;
+   end
+   
    $display("Loading ROM %s (%0d bytes)", file_name, rom_size);
    $readmemh(file_name, rom, 0, rom_size - 1);
 end
