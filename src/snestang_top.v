@@ -167,8 +167,8 @@ assign pll_hdmi_lock = 1'b1;
 reg [2:0] clk_cnt = 0;          // 0 1 2 3 4 5 6 7
 
 assign mclk   = clk_cnt[2];     // 0 0 0 0 1 1 1 1
-assign fclk   = clk_cnt[0];     // 0 1 0 1 0 1 0 1
-assign fclk_p = ~fclk;          // 1 0 1 0 1 0 1 0
+assign fclk   = ~clk_cnt[0];    // 1 0 1 0 1 0 1 0
+assign fclk_p = ~fclk;          // SDRAM samples half a fast cycle later.
 
 always @(posedge sys_clk)
     clk_cnt <= clk_cnt + 1;
@@ -274,9 +274,8 @@ wire        GSU_ROM_REQ;
 reg         GSU_ROM_ACCEPT;
 reg         GSU_ROM_DONE;
 wire [15:0] gsu_rom_word;
-reg [15:0]  gsu_cached_word;
 reg         gsu_byte_sel;
-wire [7:0]  GSU_ROM_Q = gsu_byte_sel ? gsu_cached_word[15:8] : gsu_cached_word[7:0];
+wire [7:0]  GSU_ROM_Q = gsu_byte_sel ? gsu_rom_word[15:8] : gsu_rom_word[7:0];
 
 wire [16:0] WRAM_ADDR;
 wire        WRAM_CE_N;
@@ -589,8 +588,7 @@ always @(posedge mclk) begin
             gsu_done_seen <= gsu_read_done;
             GSU_ROM_DONE <= 1;
             gsu_inflight <= 0;
-            gsu_cached_word <= gsu_rom_word;
-        gsu_cached_addr <= gsu_word_addr;
+            gsu_cached_addr <= gsu_word_addr;
             gsu_cache_valid <= 1;
         end
         if (GSU_ROM_REQ && gsu_req_armed && !gsu_inflight) begin
@@ -797,6 +795,7 @@ sdram_snes sdram(
     .cpu_addr(cpu_addr[22:1]), .cpu_port(cpu_port), .cpu_din(cpu_din), .cpu_port0(cpu_port0), .cpu_port1(cpu_port1),
     .cpu_req(cpu_req), .cpu_req_ack(cpu_req_ack), .cpu_we(cpu_we), .cpu_ds(cpu_ds),
 
+    // GSU rom accesses
 `ifdef CHIP_GSU
     .gsu_addr(gsu_word_addr), .gsu_req(gsu_req_toggle),
     .gsu_req_ack(gsu_req_ack), .gsu_done(gsu_read_done), .gsu_dout(gsu_rom_word),
