@@ -212,7 +212,7 @@ int main(int argc, char** argv, char** env) {
 		const int field = snes->y_out & 0x100;
 
 		// if the screen is black consider using !field
-		if (field && y < V_RES && (snes->x_out >> 1) < H_RES) {
+		if (y < V_RES && (snes->x_out >> 1) < H_RES) {
 			Pixel* p = &screenbuffer[y*H_RES + (snes->x_out >> 1)];
 			p->a = 0xFF;  // transparency
 			p->b = snes->B_OUT;
