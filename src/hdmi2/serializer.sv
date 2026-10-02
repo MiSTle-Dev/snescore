@@ -175,6 +175,7 @@ module serializer
         generate
         for (i = 0; i < NUM_CHANNELS; i++) begin : g_ser
             logic [9:0] shift;
+            logic [1:0] out;
 
             always_ff @(posedge clk_pixel_x5) begin
                 if (reset)
@@ -185,10 +186,13 @@ module serializer
                     shift <= {2'b0, shift[9:2]}; // shift by 2: DDR outputs 2 bits per cycle
             end
 
+            always_ff @(posedge clk_pixel_x5)
+                out <= shift[1:0];
+
             ODDRX1F u_oddr (
                 .Q    (tmds[i]),
-                .D0   (shift[0]),     // bit on rising edge
-                .D1   (shift[1]),     // bit on falling edge
+                .D0   (out[0]),     // bit on rising edge
+                .D1   (out[1]),     // bit on falling edge
                 .SCLK (clk_pixel_x5),
                 .RST  (reset)
             );
