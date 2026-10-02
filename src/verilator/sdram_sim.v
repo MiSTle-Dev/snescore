@@ -21,11 +21,11 @@ module sdram_snes
     inout      [15:0] SDRAM_DQ,
     output     [12:0] SDRAM_A,
     output     [1:0]  SDRAM_BA,
-    output reg        SDRAM_nCS, 
+    output reg        SDRAM_nCS,
     output            SDRAM_nWE,
     output            SDRAM_nRAS,
     output            SDRAM_nCAS,
-    output            SDRAM_CKE, 
+    output            SDRAM_CKE,
     output reg  [1:0] SDRAM_DQM,
 
     // CPU access (ROM and WRAM) uses bank 0 and 1 (total 16MB)
@@ -55,9 +55,8 @@ module sdram_snes
     input             bsram_we,
 
     // ARAM access uses bank 2
-	input             aram_16,      //16-bit access
 	input      [15:0] aram_addr,
-	input      [15:0] aram_din,
+	input       [7:0] aram_din,
 	output reg [15:0] aram_dout,
 	input             aram_req,
     output reg        aram_req_ack,
@@ -83,7 +82,7 @@ module sdram_snes
     input      [22:1] rv_addr,      // 8MB RV memory space
     input      [15:0] rv_din,       // 16-bit accesses
     input      [1:0]  rv_ds,
-    output reg [15:0] rv_dout,      
+    output reg [15:0] rv_dout,
     input             rv_req,
     output reg        rv_req_ack,
     input             rv_we,
@@ -125,24 +124,12 @@ localparam PORT_GSU = 4;
 localparam PORT_ARAM = 1;
 
 reg [2:0] port [2];
-reg cpu_req_r, bsram_req_r, aram_req_r;
 reg we_latch[2], oe_latch[2];
 reg [15:0] cpu_dout_pre, aram_dout_pre;
-reg cpu_req_new, bsram_req_new, aram_req_new;
 reg cpu_port_latch;
 reg gsu_turn;
 
 always @(posedge mclk) begin
-    automatic reg cpu_req_new_t = cpu_req ^ cpu_req_r;
-    automatic reg bsram_req_new_t = bsram_req ^ bsram_req_r;
-    automatic reg aram_req_new_t = aram_req ^ aram_req_r;
-    cpu_req_r <= cpu_req;
-    bsram_req_r <= bsram_req;
-    aram_req_r <= aram_req;
-    cpu_req_new <= cpu_req_new_t;
-    bsram_req_new <= bsram_req_new_t;
-    aram_req_new <= aram_req_new_t;
-
     if (~resetn) begin
         port[0] <= 0;
         port[1] <= 0;
@@ -163,12 +150,12 @@ always @(posedge mclk) begin
 
 `ifdef SDRAM_3CH
         // VRAM has its own SDRAM channel in the three-channel design.
-        if (vram1_req != vram1_ack) begin
+        if (vram1_req ^ vram1_ack) begin
             if (vram1_we) mem_vram1[vram1_addr] <= vram1_din;
             else vram1_dout <= mem_vram1[vram1_addr];
             vram1_ack <= vram1_req;
         end
-        if (vram2_req != vram2_ack) begin
+        if (vram2_req ^ vram2_ack) begin
             if (vram2_we) mem_vram2[vram2_addr] <= vram2_din;
             else vram2_dout <= mem_vram2[vram2_addr];
             vram2_ack <= vram2_req;
@@ -177,8 +164,7 @@ always @(posedge mclk) begin
 
         // RAS
         if (cycle == 1'b1) begin
-            if (cpu_req_new_t || cpu_req_new) begin                 // CPU
-                cpu_req_new <= 0;
+            if (cpu_req ^ cpu_req_ack) begin                 // CPU
                 port[0] <= PORT_CPU;
                 cpu_port_latch <= cpu_port;
                 {we_latch[0], oe_latch[0]} <= {cpu_we, ~cpu_we};
@@ -198,8 +184,7 @@ always @(posedge mclk) begin
                     endcase
                 end else
                     cpu_dout_pre <= mem_cpu[cpu_addr];
-            end else if (bsram_req_new_t || bsram_req_new) begin    // BSRAM
-                bsram_req_new <= 0;
+            end else if (bsram_req ^ bsram_req_ack) begin    // BSRAM
                 port[0] <= PORT_BSRAM;
                 {we_latch[0], oe_latch[0]} <= {bsram_we, ~bsram_we};
                 if (bsram_we) begin
@@ -228,26 +213,17 @@ always @(posedge mclk) begin
         end
 
         if (cycle == 1'b0) begin
-            if (aram_req_new_t || aram_req_new) begin               // ARAM 
-                aram_req_new <= 0;
+            if (aram_req ^ aram_req_ack) begin               // ARAM
                 port[1] <= PORT_ARAM;
                 {we_latch[1], oe_latch[1]} <= {aram_we, ~aram_we};
                 if (aram_we) begin
-                    if (aram_16)
-                        mem_aram[aram_addr[15:1]] <= aram_din;
-                    else if (aram_addr[0]) begin
-                        mem_aram[aram_addr[15:1]][15:8] <= aram_din[15:8];
-                        // $fdisplay(32'h80000002, "ARAM[%04x] <= %02x", aram_addr, aram_din[15:8]);
+                    if (aram_addr[0]) begin
+                        mem_aram[aram_addr[15:1]][15:8] <= aram_din;
                     end else begin
-                        mem_aram[aram_addr[15:1]][7:0] <= aram_din[7:0];
-                        // $fdisplay(32'h80000002, "ARAM[%04x] <= %02x", aram_addr, aram_din[7:0]);
+                        mem_aram[aram_addr[15:1]][7:0] <= aram_din;
                     end
-                end else if (aram_16)
+                end else
                     aram_dout_pre <= mem_aram[aram_addr[15:1]];
-                else if (aram_addr[0])
-                    aram_dout_pre[15:8] <= mem_aram[aram_addr[15:1]][15:8];
-                else
-                    aram_dout_pre[7:0] <= mem_aram[aram_addr[15:1]][7:0]; 
             end
         end
 
@@ -256,9 +232,9 @@ always @(posedge mclk) begin
             if (port[0] == PORT_CPU) begin                  // CPU
                 cpu_req_ack <= cpu_req;
                 if (cpu_port_latch)
-                    cpu_port1 <= cpu_dout_pre; 
+                    cpu_port1 <= cpu_dout_pre;
                 else
-                    cpu_port0 <= cpu_dout_pre; 
+                    cpu_port0 <= cpu_dout_pre;
             end else if (port[0] == PORT_BSRAM) begin       // BSRAM
                 bsram_req_ack <= bsram_req;
                 bsram_dout <= cpu_dout_pre;
@@ -274,9 +250,9 @@ always @(posedge mclk) begin
             end
             port[0] <= PORT_NONE;
         end
-        
+
         if (cycle == 1'b1) begin
-            if (port[1] == PORT_ARAM) begin                 // ARAM 
+            if (port[1] == PORT_ARAM) begin                 // ARAM
                 aram_req_ack <= aram_req;
                 aram_dout <= aram_dout_pre;
             end

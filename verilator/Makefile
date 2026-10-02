@@ -29,7 +29,7 @@ GHDL_SRCS = $(GHDL_DIR)/DSP.v $(GHDL_DIR)/SMP.v $(GHDL_DIR)/SPPU.v \
 	$(GHDL_DIR)/CEGen.v $(GHDL_DIR)/CPU.v $(GHDL_DIR)/SWRAM.v $(GHDL_DIR)/SNES.v \
 	$(GHDL_DIR)/DSPn.v $(GHDL_DIR)/DSP_LHRomMap.v \
 	$(GHDL_DIR)/GSU.v $(GHDL_DIR)/GSUMap.v
-SRCS = $D/verilator/config.v $D/verilator/test_loader.v $D/verilator/sdram_sim.v \
+SRCS = $D/verilator/test_loader.v $D/verilator/sdram_sim.v \
 	$D/verilator/dpram.v $D/verilator/dpram_difclk.v $D/verilator/bsram_bram.v \
 	$D/verilator/spram.v \
 	$D/snestang_top.v $D/rst_sync.v $D/main.v \
@@ -100,10 +100,12 @@ $(GHDL_DIR)/GSUMap.v: $(GHDL_CONFIG) $(GSU_VHDL) | $(GHDL_DIR)
 	$(GHDL) synth $(GHDL_FLAGS) -frelaxed --vendor-library=work $(GHDL_CONFIG) $(GSU_VHDL) -e GSUMap > $@.tmp
 	mv $@.tmp $@
 
-./obj_dir/V$N.cpp: Makefile sim_main.cpp $(SRCS)
+./obj_dir:
+	mkdir -p obj_dir
+
+./obj_dir/V$N.cpp: Makefile sim_main.cpp $(SRCS) ./obj_dir
 	@echo
 	@echo "### VERILATE ####"
-	mkdir -p obj_dir
 	verilator $(VERILATOR_FLAGS) --top-module $N --trace-fst -cc -O3 --exe -CFLAGS "$(CFLAGS_SDL)" -LDFLAGS "$(LIBS_SDL)" $(INCLUDES) $(SRCS) sim_main.cpp
 
 ./obj_dir/V$N: verilate

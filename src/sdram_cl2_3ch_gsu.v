@@ -108,9 +108,8 @@ module sdram_snes_gsu
     input             bsram_we,
 
     // ARAM access uses bank 2
-    input             aram_16,      // 16-bit access
     input      [15:0] aram_addr,
-    input      [15:0] aram_din,
+    input       [7:0] aram_din,
     output reg [15:0] aram_dout,
     input             aram_req,
     output reg        aram_req_ack,
@@ -325,8 +324,8 @@ always @(*) begin
         next_addr[1] = { 2'b10, 7'b1111000, aram_addr };   // ARAM uses bank 2
         next_we[1]   = aram_we;
         next_oe[1]   = ~aram_we;
-        next_din[1]  = aram_din;
-        next_ds[1]   = aram_16 ? 2'b11 : {aram_addr[0], ~aram_addr[0]};
+        next_din[1]  = {aram_din, aram_din};
+        next_ds[1]   = {aram_addr[0], ~aram_addr[0]};
     end
 end
 

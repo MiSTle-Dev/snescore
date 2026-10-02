@@ -1,4 +1,4 @@
-// `define BSRAM_BRAM
+`define BSRAM_BRAM
 `define SDRAM_3CH
 `define SDRAM_DATA_WIDTH 16
 `define SDRAM_ROW_WIDTH 13

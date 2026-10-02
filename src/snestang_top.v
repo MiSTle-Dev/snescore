@@ -7,15 +7,8 @@
 
 `include "config.vh"
 
-`ifdef BSRAM_BRAM
 `ifndef SDRAM_3CH
-`error "BSRAM_BRAM requires the three-channel SDRAM controller"
-`endif
-`endif
-`ifdef CHIP_GSU
-`ifndef SDRAM_3CH
-`error "CHIP_GSU requires the three-channel SDRAM controller"
-`endif
+`error "Only three-channel SDRAM controller is supported for now"
 `endif
 
 `ifndef VERILATOR
@@ -152,6 +145,8 @@ wire hclk /* synthesis syn_keep = 1 */;
 // Board-specific 60 MHz USB clock. Supply it from a PLL when USB HID is enabled.
 wire uclk /* synthesis syn_keep = 1 */;
 
+assign O_sdram_clk = fclk_p;
+
 wire pause;
 
 `ifdef S0_N
@@ -270,62 +265,56 @@ rst_sync resets (
 wire DOT_CLK_CE;
 
 wire [23:0] ROM_ADDR;
-wire [22:0] gsu_rom_addr;
-wire ROM_CE_N, ROM_OE_N, ROM_WE_N, ROM_WORD;
+wire        ROM_CE_N;
+wire        ROM_OE_N;
+wire        ROM_WE_N;
+wire        ROM_WORD;
 wire [15:0] ROM_D;
 wire [15:0] ROM_Q;
-wire        gsu_rom_req;
-reg         gsu_rom_accept, gsu_rom_done;
+
+wire [22:0] GSU_ROM_ADDR;
+
+wire        GSU_ROM_REQ;
+reg         GSU_ROM_ACCEPT;
+reg         GSU_ROM_DONE;
 wire [15:0] gsu_rom_word;
 reg [15:0]  gsu_cached_word;
 reg         gsu_byte_sel;
-wire [7:0]  gsu_rom_q = gsu_byte_sel ? gsu_cached_word[15:8] : gsu_cached_word[7:0];
-assign      ROM_Q = (ROM_WORD || ~ROM_ADDR[0]) ? cpu_port0 : { cpu_port0[7:0], cpu_port0[15:8] };
+wire [7:0]  GSU_ROM_Q = gsu_byte_sel ? gsu_cached_word[15:8] : gsu_cached_word[7:0];
 
 wire [16:0] WRAM_ADDR;
 wire        WRAM_CE_N;
 wire        WRAM_OE_N;
 wire        WRAM_RD_N;
 wire        WRAM_WE_N;
-wire  [7:0] WRAM_SD_Q = WRAM_ADDR[0] ? cpu_port1[15:8] : cpu_port1[7:0];
 wire  [7:0] WRAM_Q;
 wire  [7:0] WRAM_D;
-wire        wram_rd = ~WRAM_CE_N & ~WRAM_RD_N;
-wire        wram_wr = ~WRAM_CE_N & ~WRAM_WE_N;
 
 wire [19:0] BSRAM_ADDR;
 wire        BSRAM_CE_N;
 wire        BSRAM_OE_N;
 wire        BSRAM_WE_N;
 wire        BSRAM_RD_N;
-`ifdef BSRAM_BRAM
-wire  [7:0] BSRAM_Q = bsram_dout;
-`elsif SDRAM_3CH
-wire  [7:0] BSRAM_Q = BSRAM_ADDR[0] ? bsram_word[15:8] : bsram_word[7:0];
-`else
-wire  [7:0] BSRAM_Q = bsram_dout;
-`endif
+wire  [7:0] BSRAM_Q;
 wire  [7:0] BSRAM_D;
 
 wire [15:0] VRAM1_ADDR;
-wire        VRAM1_WE_N;
-wire  [7:0] VRAM1_D, VRAM1_Q;
 wire [15:0] VRAM2_ADDR;
-wire        VRAM2_WE_N;
-wire  [7:0] VRAM2_D, VRAM2_Q;
 wire        VRAM_OE_N;
+wire        VRAM1_WE_N;
+wire        VRAM2_WE_N;
+wire  [7:0] VRAM1_D, VRAM1_Q;
+wire  [7:0] VRAM2_D, VRAM2_Q;
 
 wire [15:0] ARAM_ADDR;
 wire        ARAM_CE_N;
 wire        ARAM_OE_N;
 wire        ARAM_WE_N;
-wire [15:0] aram_dout;
-wire  [7:0] ARAM_Q = ARAM_ADDR[0] ? aram_dout[15:8] : aram_dout[7:0];
+wire  [7:0] ARAM_Q;
 wire  [7:0] ARAM_D;
-wire        aram_16 = 0;
 
 wire BLEND = 1'b0;
-wire PAL = 1'b0; // we do support NTSC only
+wire PAL   = 1'b0; // we do support NTSC only
 
 wire [7:0] R_OUT  /*verilator public*/;
 wire [7:0] G_OUT  /*verilator public*/;
@@ -339,15 +328,16 @@ wire       hblankn, vblankn;
 
 wire [15:0] audio_l /*verilator public*/;
 wire [15:0] audio_r /*verilator public*/;
-wire audio_ready /*verilator public*/;
+wire        audio_ready /*verilator public*/;
 
-wire snes_joy_strb;
-wire snes_joy1_clk, snes_joy2_clk;
+wire       snes_joy_strb;
+wire       snes_joy1_clk, snes_joy2_clk;
 wire [1:0] snes_joy1_di, snes_joy2_di;
 
 // Controller sources share a wired OR so enabled controllers can coexist.
-wor [11:0] joy1_btns, joy2_btns;
+wor  [11:0] joy1_btns, joy2_btns;
 wire [11:0] hid1, hid2;
+
 `ifndef MCU_BL616
 assign hid1 = 12'b0;
 assign hid2 = 12'b0;
@@ -375,6 +365,7 @@ wire [11:0] joy_raw [0:1];
 wire [11:0] hid_raw [0:1];
 wire [11:0] joy_mapped [0:1];
 wire [11:0] joy_snes_mapped [0:1];
+
 assign joy_raw[0] = joy1_btns;
 assign joy_raw[1] = joy2_btns;
 assign hid_raw[0] = hid1;
@@ -465,15 +456,15 @@ main #(
     .ROM_CE_N(ROM_CE_N), .ROM_OE_N(ROM_OE_N), .ROM_WE_N(ROM_WE_N),
     .ROM_WORD(ROM_WORD),
 
-    .GSU_ROM_ADDR(gsu_rom_addr), .GSU_ROM_REQ(gsu_rom_req), .GSU_ROM_OWNED(),
-    .GSU_ROM_ACCEPT(gsu_rom_accept), .GSU_ROM_DONE(gsu_rom_done),
-    .GSU_ROM_Q(gsu_rom_q),
+    .GSU_ROM_ADDR(GSU_ROM_ADDR), .GSU_ROM_REQ(GSU_ROM_REQ), .GSU_ROM_OWNED(),
+    .GSU_ROM_ACCEPT(GSU_ROM_ACCEPT), .GSU_ROM_DONE(GSU_ROM_DONE),
+    .GSU_ROM_Q(GSU_ROM_Q),
 
     .BSRAM_ADDR(BSRAM_ADDR), .BSRAM_D(BSRAM_D),	.BSRAM_Q(BSRAM_Q),
     .BSRAM_CE_N(BSRAM_CE_N), .BSRAM_OE_N(BSRAM_OE_N), .BSRAM_WE_N(BSRAM_WE_N),
     .BSRAM_RD_N(BSRAM_RD_N),
 
-    .WRAM_ADDR(WRAM_ADDR), .WRAM_D(WRAM_D),	.WRAM_Q(WRAM_SD_Q),
+    .WRAM_ADDR(WRAM_ADDR), .WRAM_D(WRAM_D),	.WRAM_Q(WRAM_Q),
     .WRAM_CE_N(WRAM_CE_N), .WRAM_OE_N(WRAM_OE_N), .WRAM_WE_N(WRAM_WE_N),
     .WRAM_RD_N(WRAM_RD_N),
 
@@ -513,13 +504,13 @@ main #(
 `endif
 
 `ifdef DISABLE_SNES
-assign gsu_rom_req = 1'b0;
+assign GSU_ROM_REQ = 1'b0;
 `endif
 
 // SDRAM for SNES ROM, WRAM and ARAM
+reg         cpu_port;
 wire [15:0] cpu_port0;
 wire [15:0] cpu_port1;
-reg         cpu_port;
 
 reg         cpu_req;
 wire        cpu_req_ack;
@@ -527,49 +518,58 @@ reg  [1:0]  cpu_ds;
 reg [15:0]  cpu_din;
 reg [22:0]  cpu_addr;
 reg         cpu_we;
-reg         gsu_req_toggle, gsu_inflight, gsu_req_armed, gsu_ack_seen, gsu_done_seen;
-reg [22:1]  gsu_word_addr, gsu_cached_addr;
-reg         gsu_cache_valid;
-wire        gsu_req_ack, gsu_read_done;
 
-wire [22:0] rom_addr = loading ? loader_addr : ROM_ADDR[22:0];
 reg [22:0]  rom_addr_sd;
 reg         rom_word_valid;
+wire        rom_rd = ~ROM_CE_N; // && ~ROM_OE_N;
+// ROM_OE_N fires too late for SDRAM transaction to finish
 
 reg [16:0]  wram_addr_sd;
-reg         wram_word_valid, wram_wr_r;
+reg         wram_word_valid;
+reg         wram_wr_r;
+wire        wram_rd = ~WRAM_CE_N & ~WRAM_RD_N;
+wire        wram_wr = ~WRAM_CE_N & ~WRAM_WE_N;
 
 reg         bsram_req;
 wire        bsram_req_ack;
-reg [19:0]  bsram_addr;
+reg [19:0]  bsram_addr_sd;
 reg [7:0]   bsram_din;
 wire [7:0]  bsram_dout;
 wire [15:0] bsram_word;
-wire        bsram_rd = ~BSRAM_CE_N & (~BSRAM_RD_N || rom_type[7:4] == 4'hC);
-wire        bsram_wr = ~BSRAM_CE_N & ~BSRAM_WE_N;
-reg         bsram_rd_r, bsram_wr_r;
+reg         bsram_wr_r;
 reg         bsram_word_valid;
 wire        bsram_rv_write_done;
-`ifdef BSRAM_BRAM
-wire        bsram_read_miss = BSRAM_ADDR != bsram_addr || !bsram_rd_r;
-`elsif SDRAM_3CH
-wire        bsram_read_miss = !bsram_word_valid || BSRAM_ADDR[19:1] != bsram_addr[19:1];
-`else
-wire        bsram_read_miss = BSRAM_ADDR != bsram_addr || !bsram_rd_r;
-`endif
+wire        bsram_rd = ~BSRAM_CE_N & (~BSRAM_RD_N || rom_type[7:4] == 4'hC);
+wire        bsram_wr = ~BSRAM_CE_N & ~BSRAM_WE_N;
 
-wire        aram_rd = ~ARAM_CE_N & ~ARAM_OE_N;
-wire        aram_wr = ~ARAM_CE_N & ~ARAM_WE_N;
-reg [15:0]  aram_addr_sd;
-reg         aram_word_valid;
-reg         aram_wr_r;
 reg         aram_req;
 wire        aram_req_ack;
+reg  [15:0] aram_addr_sd;
+reg   [7:0] aram_din;
+wire [15:0] aram_word;
+reg         aram_word_valid;
+reg         aram_wr_r;
+wire        aram_rd = ~ARAM_CE_N & ~ARAM_OE_N;
+wire        aram_wr = ~ARAM_CE_N & ~ARAM_WE_N;
 
-assign      O_sdram_clk = fclk_p;
+assign ROM_Q  = (ROM_WORD || ~ROM_ADDR[0]) ? cpu_port0 : { cpu_port0[7:0], cpu_port0[15:8] };
+assign WRAM_Q = WRAM_ADDR[0] ? cpu_port1[15:8] : cpu_port1[7:0];
 
-// The GSU uses its own SDRAM request and data path.
+`ifdef BSRAM_BRAM
+assign BSRAM_Q = bsram_dout;
+`else
+assign BSRAM_Q = BSRAM_ADDR[0] ? bsram_word[15:8] : bsram_word[7:0];
+`endif
+
+assign ARAM_Q = ARAM_ADDR[0] ? aram_word[15:8] : aram_word[7:0];
+
+// The GSU uses its own SDRAM request and data path for ROM access.
 `ifdef CHIP_GSU
+reg        gsu_req_toggle, gsu_inflight, gsu_req_armed, gsu_ack_seen, gsu_done_seen;
+reg [22:1] gsu_word_addr, gsu_cached_addr;
+reg        gsu_cache_valid;
+wire       gsu_req_ack, gsu_read_done;
+
 always @(posedge mclk) begin
     if (!resetn) begin
         gsu_req_toggle <= gsu_req_ack;
@@ -577,33 +577,34 @@ always @(posedge mclk) begin
         gsu_req_armed <= 1;
         gsu_ack_seen <= gsu_req_ack;
         gsu_done_seen <= gsu_read_done;
-        gsu_rom_accept <= 0;
-        gsu_rom_done <= 0;
+        GSU_ROM_ACCEPT <= 0;
+        GSU_ROM_DONE <= 0;
         gsu_cache_valid <= 0;
+
     end else begin
-        gsu_rom_accept <= 0;
-        gsu_rom_done <= 0;
-        if (!gsu_rom_req) gsu_req_armed <= 1;
+        GSU_ROM_ACCEPT <= 0;
+        GSU_ROM_DONE <= 0;
+        if (!GSU_ROM_REQ) gsu_req_armed <= 1;
         if (gsu_req_ack != gsu_ack_seen) begin
             gsu_ack_seen <= gsu_req_ack;
-            gsu_rom_accept <= 1;
+            GSU_ROM_ACCEPT <= 1;
         end
         if (gsu_read_done != gsu_done_seen) begin
             gsu_done_seen <= gsu_read_done;
-            gsu_rom_done <= 1;
+            GSU_ROM_DONE <= 1;
             gsu_inflight <= 0;
             gsu_cached_word <= gsu_rom_word;
-            gsu_cached_addr <= gsu_word_addr;
+        gsu_cached_addr <= gsu_word_addr;
             gsu_cache_valid <= 1;
         end
-        if (gsu_rom_req && gsu_req_armed && !gsu_inflight) begin
-            gsu_byte_sel <= gsu_rom_addr[0];
+        if (GSU_ROM_REQ && gsu_req_armed && !gsu_inflight) begin
+            gsu_byte_sel <= GSU_ROM_ADDR[0];
             gsu_req_armed <= 0;
-            if (gsu_cache_valid && gsu_cached_addr == gsu_rom_addr[22:1]) begin
-                gsu_rom_accept <= 1;
-                gsu_rom_done <= 1;
+            if (gsu_cache_valid && gsu_cached_addr == GSU_ROM_ADDR[22:1]) begin
+                GSU_ROM_ACCEPT <= 1;
+                GSU_ROM_DONE <= 1;
             end else begin
-                gsu_word_addr <= gsu_rom_addr[22:1];
+                gsu_word_addr <= GSU_ROM_ADDR[22:1];
                 gsu_req_toggle <= ~gsu_req_toggle;
                 gsu_inflight <= 1;
             end
@@ -613,60 +614,78 @@ always @(posedge mclk) begin
 end
 `endif
 
-// Generate requests for the other SDRAM ports.
+// Generate requests for the SDRAM ports.
 always @(posedge mclk) begin
     if (~resetn) begin
+        wram_wr_r <= 0;
+        bsram_wr_r <= 0;
+        aram_wr_r <= 0;
         rom_word_valid <= 0;
         wram_word_valid <= 0;
-        wram_wr_r <= 0;
         bsram_word_valid <= 0;
         aram_word_valid <= 0;
+
     end else begin
-        if (loading) rom_word_valid <= 0;
-        if (loading && (loader_do_valid && loader_do_ready) && header_finished && loader_addr[0]
-            || ~loading && ~ROM_CE_N && (!rom_word_valid || rom_addr_sd[22:1] != rom_addr[22:1])) begin
-            rom_addr_sd <= rom_addr;
-            cpu_addr <= rom_addr;
-            cpu_req <= ~cpu_req;
-            cpu_we <= loading;
-            cpu_din <= {loader_do, loader_do_r};
-            cpu_ds <= 2'b11;
-            cpu_port <= 0;
-            if (!loading) rom_word_valid <= 1;
+        if (!wram_wr) wram_wr_r <= 0;
+        if (!bsram_wr) bsram_wr_r <= 0;
+        if (!aram_wr) aram_wr_r <= 0;
+
+        if (bsram_rv_write_done) bsram_word_valid <= 0;
+
+        if (cpu_req == cpu_req_ack) begin
+            if ((loading  && loader_do_valid && loader_do_ready && header_finished && loader_addr[0]) ||
+                (~loading && (rom_rd && (ROM_ADDR[22:1] != rom_addr_sd[22:1] || !rom_word_valid)))) begin
+                rom_addr_sd <= loading ? loader_addr : ROM_ADDR[22:0];
+                rom_word_valid <= ~loading;
+
+                cpu_req <= ~cpu_req;
+                cpu_addr <= loading ? loader_addr : ROM_ADDR[22:0];
+                cpu_we <= loading;
+                cpu_ds <= 2'b11;
+                cpu_din <= {loader_do, loader_do_r};
+                cpu_port <= 0;
+            end
+
+            if ((wram_rd && (WRAM_ADDR[16:1] != wram_addr_sd[16:1] || !wram_word_valid)) ||
+                (wram_wr && (WRAM_ADDR[16:0] != wram_addr_sd[16:0])) ||
+                (wram_wr && ~wram_wr_r)) begin
+                wram_addr_sd <= WRAM_ADDR;
+                wram_word_valid <= ~wram_wr;
+                wram_wr_r <= wram_wr;
+
+                cpu_req <= ~cpu_req;
+                cpu_addr <= {6'b111_111, WRAM_ADDR[16:0]};
+                cpu_we <= wram_wr;
+                cpu_ds <= {WRAM_ADDR[0], ~WRAM_ADDR[0]};
+                cpu_din <= {WRAM_D, WRAM_D};
+                cpu_port <= 1;
+            end
         end
 
-        wram_wr_r <= wram_wr;
-        if (wram_wr) wram_word_valid <= 0;
-        if (wram_rd && (!wram_word_valid || WRAM_ADDR[16:1] != wram_addr_sd[16:1])
-            || (wram_wr && !wram_wr_r)) begin
-            wram_addr_sd <= WRAM_ADDR;
-            cpu_req <= ~cpu_req;
-            cpu_addr <= {6'b111_111, WRAM_ADDR[16:0]};
-            cpu_we <= wram_wr;
-            cpu_ds <= {WRAM_ADDR[0], ~WRAM_ADDR[0]};
-            cpu_din <= {WRAM_D, WRAM_D};
-            cpu_port <= 1;
-            if (!wram_wr) wram_word_valid <= 1;
+        if (bsram_req == bsram_req_ack) begin
+            if ((bsram_rd && (BSRAM_ADDR[19:1] != bsram_addr_sd[19:1] || !bsram_word_valid)) ||
+                (bsram_wr && (BSRAM_ADDR[19:0] != bsram_addr_sd[19:0])) ||
+                (bsram_wr && ~bsram_wr_r)) begin
+                bsram_addr_sd <= BSRAM_ADDR;
+                bsram_word_valid <= ~bsram_wr;
+                bsram_wr_r <= bsram_wr;
+
+                bsram_req <= ~bsram_req;
+                bsram_din <= BSRAM_D;
+            end
         end
 
-        // BSRAM read/write
-        bsram_rd_r <= bsram_rd; bsram_wr_r <= bsram_wr;
-        if (bsram_wr || bsram_rv_write_done) bsram_word_valid <= 0;
-        if (bsram_rd && bsram_read_miss || (bsram_wr & ~bsram_wr_r)) begin
-            bsram_addr <= BSRAM_ADDR;
-            bsram_req <= ~bsram_req;
-            bsram_din <= BSRAM_D;
-            if (!bsram_wr) bsram_word_valid <= 1;
-        end
+        if (aram_req == aram_req_ack) begin
+            if ((aram_rd && (ARAM_ADDR[15:1] != aram_addr_sd[15:1] || !aram_word_valid)) ||
+                (aram_wr && (ARAM_ADDR[15:0] != aram_addr_sd[15:0])) ||
+                (aram_wr && ~aram_wr_r)) begin
+                aram_addr_sd <= ARAM_ADDR;
+                aram_word_valid <= ~aram_wr;
+                aram_wr_r <= aram_wr;
 
-        // ARAM read/write
-        aram_wr_r <= aram_wr;
-        if (aram_wr) aram_word_valid <= 0;
-        if (aram_rd && (!aram_word_valid || aram_addr_sd[15:1] != ARAM_ADDR[15:1])
-            || aram_wr && (aram_addr_sd != ARAM_ADDR || !aram_wr_r)) begin
-            aram_req <= ~aram_req;
-            aram_addr_sd <= ARAM_ADDR;
-            if (!aram_wr) aram_word_valid <= 1;
+                aram_req <= ~aram_req;
+                aram_din <= ARAM_D;
+            end
         end
     end
 end
@@ -731,6 +750,7 @@ always @(posedge mclk) begin
     if (~resetn) begin
         bsram_bram_req_ack <= 0;
         rv_bram_req_ack <= 0;
+
     end else begin
         bsram_bram_req_ack <= bsram_req;
         rv_bram_req_ack <= rv_bram_req;
@@ -744,21 +764,21 @@ wire [15:0] rv_dout = rv_sdram_dout;
 `endif
 
 reg [14:0] vram1_addr_sd, vram2_addr_sd;
-reg vram1_we_n_old, vram2_we_n_old;
+reg vram1_we_n_r, vram2_we_n_r;
 reg vram1_req /* synthesis syn_keep=1 */;
 reg vram2_req /* synthesis syn_keep=1 */;
 reg [7:0] vram1_din, vram2_din;
 
 always @(posedge mclk) begin
-    vram1_we_n_old <= VRAM1_WE_N;
-    if ((~VRAM1_WE_N & vram1_we_n_old) || (VRAM1_ADDR[14:0] != vram1_addr_sd && ~VRAM_OE_N)) begin
+    vram1_we_n_r <= VRAM1_WE_N;
+    if ((~VRAM1_WE_N && vram1_we_n_r) || (~VRAM_OE_N && (VRAM1_ADDR[14:0] != vram1_addr_sd))) begin
         vram1_addr_sd <= VRAM1_ADDR[14:0];
         vram1_din <= VRAM1_D;
         vram1_req <= ~vram1_req;
     end
 
-    vram2_we_n_old <= VRAM2_WE_N;
-    if ((~VRAM2_WE_N & vram2_we_n_old) || (VRAM2_ADDR[14:0] != vram2_addr_sd && ~VRAM_OE_N)) begin
+    vram2_we_n_r <= VRAM2_WE_N;
+    if ((~VRAM2_WE_N && vram2_we_n_r) || (~VRAM_OE_N && (VRAM2_ADDR[14:0] != vram2_addr_sd))) begin
         vram2_addr_sd <= VRAM2_ADDR[14:0];
         vram2_din <= VRAM2_D;
         vram2_req <= ~vram2_req;
@@ -778,59 +798,43 @@ sdram_snes sdram(
     .SDRAM_nCAS(O_sdram_cas_n), .SDRAM_CKE(O_sdram_cke), .SDRAM_DQM(O_sdram_dqm),
 
     // CPU accesses
-    .cpu_addr(cpu_addr[22:1]), .cpu_din(cpu_din), .cpu_port(cpu_port),
-    .cpu_port0(cpu_port0), .cpu_port1(cpu_port1), .cpu_req(cpu_req), .cpu_req_ack(cpu_req_ack),
+    .cpu_addr(cpu_addr[22:1]), .cpu_port(cpu_port), .cpu_din(cpu_din), .cpu_port0(cpu_port0), .cpu_port1(cpu_port1),
+    .cpu_req(cpu_req), .cpu_req_ack(cpu_req_ack), .cpu_we(cpu_we), .cpu_ds(cpu_ds),
+
 `ifdef CHIP_GSU
     .gsu_addr(gsu_word_addr), .gsu_req(gsu_req_toggle),
     .gsu_req_ack(gsu_req_ack), .gsu_done(gsu_read_done), .gsu_dout(gsu_rom_word),
 `endif
-    .cpu_we(cpu_we), .cpu_ds(cpu_ds),
 
     // BSRAM accesses
 `ifdef BSRAM_BRAM
-    .bsram_addr(20'b0), .bsram_dout(), .bsram_din(8'b0),
+    .bsram_addr(20'b0), .bsram_din(8'b0), .bsram_dout(),
     .bsram_req(1'b0), .bsram_req_ack(), .bsram_we(1'b0),
 `else
-`ifdef SDRAM_3CH
-    .bsram_addr(bsram_addr), .bsram_dout(bsram_word), .bsram_din(bsram_din),
-`else
-    .bsram_addr(bsram_addr), .bsram_dout(bsram_dout), .bsram_din(bsram_din),
-`endif
-    .bsram_req(bsram_req), .bsram_req_ack(bsram_req_ack), .bsram_we(bsram_wr),
+    .bsram_addr(bsram_addr_sd), .bsram_din(bsram_din), .bsram_dout(bsram_word),
+    .bsram_req(bsram_req), .bsram_req_ack(bsram_req_ack), .bsram_we(bsram_wr_r),
 `endif
 
     // ARAM accesses
-    .aram_16(aram_16), .aram_addr(ARAM_ADDR), .aram_din({ARAM_D, ARAM_D}),
-    .aram_dout(aram_dout), .aram_req(aram_req), .aram_req_ack(aram_req_ack), .aram_we(aram_wr),
+    .aram_addr(aram_addr_sd), .aram_din(aram_din), .aram_dout(aram_word),
+    .aram_req(aram_req), .aram_req_ack(aram_req_ack), .aram_we(aram_wr_r),
 
-`ifdef SDRAM_3CH
     // VRAM accesses
-    .vram1_addr(vram1_addr_sd), .vram1_req(vram1_req), .vram1_ack(),
-    .vram1_we(~vram1_we_n_old), .vram1_din(vram1_din), .vram1_dout(VRAM1_Q),
-    .vram2_addr(vram2_addr_sd), .vram2_req(vram2_req), .vram2_ack(),
-    .vram2_we(~vram2_we_n_old),  .vram2_din(vram2_din), .vram2_dout(VRAM2_Q),
-`endif
+    .vram1_addr(vram1_addr_sd), .vram1_din(vram1_din), .vram1_dout(VRAM1_Q),
+    .vram1_req(vram1_req), .vram1_ack(), .vram1_we(~vram1_we_n_r),
 
-`ifdef MCU_BL616
-    .rv_addr(), .rv_din(),
-    .rv_ds(), .rv_dout(), .rv_req(), .rv_req_ack(), .rv_we()
-`else
+    .vram2_addr(vram2_addr_sd), .vram2_din(vram2_din), .vram2_dout(VRAM2_Q),
+    .vram2_req(vram2_req), .vram2_ack(), .vram2_we(~vram2_we_n_r),
+
     // IOSys risc-v softcore
-    .rv_addr({rv_addr[22:2], rv_word}), .rv_din(rv_word ? rv_wdata[31:16] : rv_wdata[15:0]),
-    .rv_ds(rv_ds), .rv_dout(rv_sdram_dout), .rv_req(rv_req), .rv_req_ack(rv_sdram_req_ack), .rv_we(rv_wstrb != 0)
+`ifdef MCU_BL616
+    .rv_addr(), .rv_din(), .rv_dout(),
+    .rv_req(), .rv_req_ack(), .rv_ds(), .rv_we()
+`else
+    .rv_addr({rv_addr[22:2], rv_word}), .rv_din(rv_word ? rv_wdata[31:16] : rv_wdata[15:0]), .rv_dout(rv_sdram_dout),
+    .rv_req(rv_req), .rv_req_ack(rv_sdram_req_ack), .rv_ds(rv_ds), .rv_we(rv_wstrb != 0)
 `endif
 );
-
-`ifndef SDRAM_3CH
-// FPGA block RAM for SNES VRAM
-vram vram(
-    .clk(mclk),
-    .vram1_addr(vram1_addr_sd), .vram1_req(vram1_req), .vram1_ack(),
-    .vram1_we(~vram1_we_n_old), .vram1_din(vram1_din), .vram1_dout(VRAM1_Q),
-    .vram2_addr(vram2_addr_sd), .vram2_req(vram2_req), .vram2_ack(),
-    .vram2_we(~vram2_we_n_old),  .vram2_din(vram2_din), .vram2_dout(VRAM2_Q)
-);
-`endif
 
 assign loader_do_ready = cpu_req == cpu_req_ack;
 
@@ -1225,6 +1229,7 @@ always @(posedge mclk) begin    // halt SNES during snes dram refresh on line 2
         test_halt_cnt <= 0;
         test_halt_snes <= 0;
         test_sync_done <= 0;
+
     end else begin
         if (~test_sync_done) begin
             if (~test_halt_snes) begin
@@ -1244,19 +1249,7 @@ always @(posedge mclk) begin    // halt SNES during snes dram refresh on line 2
             test_sync_done <= 0;
     end
 end
-
 `endif
-
-`ifndef VERILATOR
-
-reg [19:0] timer;           // 21 times per second
-
-// status display on LED
-
-reg [9:0] status;
-//assign led = s0 == 1'b0 ? ~status[9:5] : ~status[4:0];        // s0==0 when pressed, for mega138k
-//assign led = {UART_TXD, s0};
-//assign led = joy1_btns[1:0];        // Y and B
 
 `ifdef LED_N
 assign led[0] = ~resetn;
@@ -1264,27 +1257,6 @@ assign led[1] = ~loaded;
 `else
 assign led[0] = resetn;
 assign led[1] = loaded;
-`endif
-
-always @(posedge mclk) begin
-    if (loading && ~loading_r)
-        status <= 0;
-    if (loaded) begin
-        case (rom_addr)
-        23'h00_000A: status[1] <= 1;
-        23'h00_00A1: status[2] <= 1;        // Clear_WRAM
-        23'h00_0645: status[3] <= 1;        // Main
-        23'h00_0111: status[4] <= 1;        // DMA_Palette
-
-        23'h00_06AB: status[5] <= 1;        // Draw_Map
-        23'h00_072A: status[6] <= 1;        // Init_Music
-        23'h00_075F: status[7] <= 1;        // Infinite_loop
-        23'h00_0787: status[8] <= 1;        // left button
-        default: ;
-        endcase
-    end
-end
-
 `endif
 
 endmodule
