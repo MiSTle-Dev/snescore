@@ -415,11 +415,13 @@ always @(posedge clk, negedge resetn) begin
             end
         end
         if (normal) begin
-             if (clkref & ~clkref_r)
-                // cycle <= 8'b1000_0000;     // go to cycle 7 after clkref posedge
-                cycle <= 8'b0000_1000;        // go to cycle 3 instead
-             else
-                cycle <= {cycle[6:0], cycle[7]};
+            cycle <= {cycle[6:0], cycle[7]};
+
+            if (clkref && ~clkref_r && !refresh &&
+                !(|oe_latch) && !(|we_latch)) begin
+                // cycle <= 8'b10000000;     // go to cycle 7 after clkref posedge
+                cycle <= 8'b00001000;        // go to cycle 3 instead
+            end
 
             if (!(&refresh_cnt))
                 refresh_cnt <= refresh_cnt + 1'd1;

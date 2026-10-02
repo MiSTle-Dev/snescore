@@ -52,7 +52,13 @@
 module sdram_snes_gsu
 #(
     // Clock frequency
-    parameter         FREQ = 86_000_000,
+    parameter FREQ = 86_000_000,
+
+    // Delay done signals by 3 cycles
+    // only needed if dout is sampled directly
+    // in mclk on done trigger
+    parameter BSRAM_DONE_DELAY = 0,
+    parameter GSU_DONE_DELAY   = 0,
 
     // Time delays for 86MHz max clock (min clock cycle 11.6ns)
     // The SDRAM supports max 100MHz (RP/RCD/RC need changes)
@@ -446,11 +452,13 @@ always @(posedge clk, negedge resetn) begin
             end
         end
         if (normal) begin
-             if (clkref & ~clkref_r)
-                // cycle <= 8'b1000_0000;     // go to cycle 7 after clkref posedge
-                cycle <= 8'b0000_1000;        // go to cycle 3 instead
-             else
-                cycle <= {cycle[6:0], cycle[7]};
+            cycle <= {cycle[6:0], cycle[7]};
+
+            if (clkref && ~clkref_r && !refresh &&
+                !(|oe_latch) && !(|we_latch)) begin
+                // cycle <= 8'b10000000;     // go to cycle 7 after clkref posedge
+                cycle <= 8'b00001000;        // go to cycle 3 instead
+            end
 
             if (!(&refresh_cnt))
                 refresh_cnt <= refresh_cnt + 1'd1;
@@ -591,16 +599,30 @@ always @(posedge clk, negedge resetn) begin
             if (cycle[5] && oe_latch[0]) begin
                 case (port[0])
                 PORT_CPU: if (cpu_port_latch) cpu_port1 <= dq_in; else cpu_port0 <= dq_in;
-                PORT_BSRAM: bsram_dout_reg <= dq_in;
-                PORT_GSU: gsu_dout <= dq_in;
+                PORT_BSRAM: begin
+                    bsram_dout_reg <= dq_in;
+                    if (!BSRAM_DONE_DELAY)
+                        bsram_done <= ~bsram_done;
+                end
+                PORT_GSU: begin
+                    gsu_dout <= dq_in;
+                    if (!GSU_DONE_DELAY)
+                        gsu_done <= ~gsu_done;
+                end
                 PORT_RV: rv_dout <= dq_in;
                 default: ;
                 endcase
             end
             if (cycle[7] && oe_latch[0] && ~we_latch[0]) begin
                 case (port[0])
-                PORT_BSRAM: bsram_done <= ~bsram_done;
-                PORT_GSU: gsu_done <= ~gsu_done;
+                PORT_BSRAM: begin
+                    if (BSRAM_DONE_DELAY)
+                        bsram_done <= ~bsram_done;
+                end
+                PORT_GSU: begin
+                    if (GSU_DONE_DELAY)
+                        gsu_done <= ~gsu_done;
+                end
                 default: ;
                 endcase
             end
