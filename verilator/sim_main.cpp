@@ -179,10 +179,10 @@ int main(int argc, char** argv, char** env) {
 		top->sys_clk ^= 1;
 
 #ifdef ENABLE_COMPANION
-		// handle sd card emulation on one edge of the 1/6 sys_clk
+		// handle sd card emulation on one edge of the 1/8 sys_clk
 		// which in turn is the mclk the sd card itself runs on
 		static int mcnt = 0;
-		if(++mcnt == 12) {
+		if(++mcnt == 16) {
 		  sd_handle();
 		  mcnt = 0;
 		}
@@ -251,7 +251,7 @@ int main(int argc, char** argv, char** env) {
 		} else
 			frame_updated = false;
 
-		simulation_time += 1.0/1000000/SYS_CLK/12;
+		simulation_time += 1.0/1000000/SYS_CLK/16;
 	}
 
 

@@ -57,9 +57,6 @@ module snestang_top #(
     output [2:0] tmds_d_n,
 `endif
 
-    // LED
-    output [1:0] led,
-
     // MicroSD
 `ifdef ENABLE_COMPANION
     output			    sdclk,
@@ -135,6 +132,7 @@ module snestang_top #(
     input flash_spi_clk_ts,
 `endif
 
+`ifndef VERILATOR
     // SDRAM
     output O_sdram_clk,
     output O_sdram_cke,
@@ -145,8 +143,29 @@ module snestang_top #(
     inout [SDRAM_DATA_WIDTH-1:0] IO_sdram_dq,       // 31 bit bidirectional data bus
     output [SDRAM_ROW_WIDTH-1:0] O_sdram_addr,     // 11 bit multiplexed address bus
     output [SDRAM_DATA_WIDTH/8-1:0] O_sdram_dqm,       //
-    output [1:0] O_sdram_ba         // 4 banks
+    output [1:0] O_sdram_ba,        // 4 banks
+`endif
+
+    // LED
+    output [1:0] led
 );
+
+`ifdef VERILATOR
+// sdram signals are internal in simulation since the simulated sdram is embedded
+// here. To be able to use the --pins-inout-enables option for the remaining
+// top level inout signals, these sdram signals must not be exposed. Otherwise the sdram
+// inouts won't work with that option set.
+wire O_sdram_clk;
+wire O_sdram_cke;
+wire O_sdram_cs_n;            // chip select
+wire O_sdram_cas_n;           // columns address select
+wire O_sdram_ras_n;           // row address select
+wire O_sdram_wen_n;           // write enable
+wire [SDRAM_DATA_WIDTH-1:0] IO_sdram_dq;       // 31 bit bidirectional data bus
+wire [SDRAM_ROW_WIDTH-1:0]  O_sdram_addr;      // 11 bit multiplexed address bus
+wire [SDRAM_DATA_WIDTH/8-1:0] O_sdram_dqm;     //
+wire [1:0] O_sdram_ba;        // 4 banks
+`endif
 
 // Clock signals
 wire mclk /* synthesis syn_keep = 1 */;                      // SNES master clock at 21.5054Mhz (~21.477)
