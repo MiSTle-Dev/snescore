@@ -61,8 +61,15 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/mistle_gw5a_25/gowin_pll_hdmi.v"
     add_file -type verilog "src/mistle_gw5a_25/gowin_pll_snes.v"
     add_file -type verilog "src/sdram_cl2_3ch.v"
+    add_file -type verilog "src/mistle/companion.v"
     add_file -type verilog "src/mistle/mcu_spi.v"
+    add_file -type verilog "src/mistle/sysctrl.v"
     add_file -type verilog "src/mistle/hid.v"
+    add_file -type verilog "src/mistle/osd_u8g2.v"
+    add_file -type verilog "src/mistle/sd_card.v"
+    add_file -type verilog "src/mistle/sd_rw.v"
+    add_file -type verilog "src/mistle/sdcmd_ctrl.v"
+    add_file "src/mistle/snes_xml.hex"
     set_option -output_base_name snestang_${dev}
 } elseif {$dev eq "mega60k"} {
     set_device GW5AT-LV60PG484AC1/I0 -device_version B
@@ -237,8 +244,8 @@ set_option -rw_check_on_ram 1
 set_option -place_option 2
 set_option -use_mspi_as_gpio 1
 set_option -use_sspi_as_gpio 1
-set_option -use_ready_as_gpio 1
-set_option -use_done_as_gpio 1
+set_option -use_ready_as_gpio 0   # check for tn20k
+set_option -use_done_as_gpio 0   # check for tn20k
 set_option -use_i2c_as_gpio 1
 set_option -use_cpu_as_gpio 1
 set_option -multi_boot 1

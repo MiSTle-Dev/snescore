@@ -63,12 +63,24 @@ module snestang_top #(
     inout			    sdcmd,
     inout [3:0]			    sddat, 
 
+`ifdef VERILATOR
+    // in simulation there is no SPI interface to the companion
     input			    mcu_data_strobe,
     input			    mcu_data_start,
     output [7:0]		    mcu_data_in,
     input [7:0]			    mcu_data_out,
     output			    mcu_irq,
-    input			    mcu_iack,  
+    input			    mcu_iack, 
+`else
+    // FPGA Companion
+    input			    mcu_din,
+    output			    mcu_dout,
+    input			    mcu_clk,
+    input			    mcu_ss,
+    output			    mcu_intn,
+    input			    mcu_spare,
+`endif
+
 `else
     output sd_clk,
     inout  sd_cmd,      // MOSI
@@ -76,7 +88,6 @@ module snestang_top #(
     output sd_dat1,
     output sd_dat2,
     output sd_dat3,
-`endif
 
     // SPI flash
     output flash_spi_cs_n,          // chip select
@@ -87,6 +98,7 @@ module snestang_top #(
 `endif
     output flash_spi_wp_n,          // write protect
     output flash_spi_hold_n,        // hold operations
+`endif
 
 `ifdef CONTROLLER_SNES
     // snes controllers
@@ -116,16 +128,6 @@ module snestang_top #(
     inout [1:0] usb_dn,
     output [1:0] usb_pull_dp,
     output [1:0] usb_pull_dn,
-`endif
-
-`ifdef CONTROLLER_MISTLE
-    // FPGA Companion
-    input mcu_din,
-    output mcu_dout,
-    input mcu_clk,
-    input mcu_ss,
-    output mcu_intn,
-    input mcu_spare,
 `endif
 
 `ifdef LATTICE
@@ -362,7 +364,7 @@ wire       snes_joy1_clk, snes_joy2_clk;
 wire [1:0] snes_joy1_di, snes_joy2_di;
 
 // Controller sources share a wired OR so enabled controllers can coexist.
-wor  [11:0] joy1_btns, joy2_btns;
+wire [11:0] joy1_btns, joy2_btns;
 wire [11:0] hid1, hid2;
 
 `ifndef MCU_BL616
@@ -446,13 +448,16 @@ wire sdram_refreshing;
 wire refresh;
 wire snes_enable;
 
+// values set via OSD (if present)
+wire	osd_reset;   
+
 reg snes_resetn = 1'b0;
 
 always @(posedge mclk, negedge iosys_resetn) begin
     if (~iosys_resetn)
         snes_resetn <= 1'b0;
     else
-        snes_resetn <= iosys_resetn & ~loading;
+        snes_resetn <= iosys_resetn & ~loading & !osd_reset;
 end
 
 assign snes_enable = loaded && ~pause_snes_for_frame_sync;
@@ -993,73 +998,53 @@ assign joy2_btns = usb_game_buttons[1];
 `endif
 `endif
 
-`ifdef CONTROLLER_MISTLE
-wire mcu_hid_strobe;
-wire mcu_start;
+// -------------------------------------------------------------------------------
+// ------------------------------ MiSTle integration -----------------------------
+// -------------------------------------------------------------------------------
+	     
+wire [14:0] overlay_color;
+wire [7:0] overlay_x;
+wire [7:0] overlay_y;
 
-wire [7:0] mcu_data_out;
-wire [7:0] hid_data_out;
+`ifdef MISTLE
+companion companion 
+   (
+    .clk(mclk), .resetn(resetn),
 
-`ifdef LATTICE
-// filter companion SPI clock
-wire [15:0] mcu_clk_i_d = { mcu_clk_i_d[14:0], mcu_clk } /* synthesis syn_keep=1 */ /* synthesis syn_dont_touch=1 */;
-wire        mcu_clk_i   = ( mcu_clk_i && mcu_clk_i_d != 16'h0000) ||
-                          (!mcu_clk_i && mcu_clk_i_d == 16'hffff) /* synthesis syn_keep=1 */ /* synthesis syn_dont_touch=1 */;
+    // sd card interface
+    .sd_clk(sdclk), .sd_cmd(sdcmd), .sd_dat(sddat),
+
+    // Companion SPI interface
+    .mcu_din(mcu_din),
+    .mcu_dout(mcu_dout),
+    .mcu_clk(mcu_clk),
+    .mcu_ss(mcu_ss),
+    .mcu_intn(mcu_intn),
+    .mcu_spare(mcu_spare),
+
+    // integrate OSD into video data
+    .osd_enable(overlay),
+    .osd_color(overlay_color),
+    .osd_x(overlay_x),
+    .osd_y(overlay_y),
+
+    // values set via OSD/config file
+    .system_reset(osd_reset),
+    
+    // wire up two joysticks/gamepads
+    .joy1_btns(joy1_btns),
+    .joy2_btns(joy2_btns),
+
+    // rom loader interface
+    .dout(loader_do), .dout_valid(loader_do_valid), .dout_ready(loader_do_ready),
+    .loading(loading), .header_ok(header_ok)
+);
 `else
-wire mcu_clk_i = mcu_clk;
-`endif
+assign osd_reset = 1'b0;		     
+`endif //  `ifdef MISTLE
 
-mcu_spi mcu (
-  .clk(mclk),
-  .reset(reset),
-
-  // SPI interface to FPGA Companion
-  .spi_io_ss (mcu_ss),
-  .spi_io_clk(mcu_clk),
-  .spi_io_din(mcu_din),
-  .spi_io_dout(mcu_dout),
-
-  // byte wide data in/out to the submodules
-  .mcu_sys_strobe(),
-  .mcu_hid_strobe(mcu_hid_strobe),
-  .mcu_osd_strobe(),
-  .mcu_sdc_strobe(),
-  .mcu_start(mcu_start),
-  .mcu_dout(mcu_data_out),
-  .mcu_sys_din(8'b0),
-  .mcu_hid_din(hid_data_out),
-  .mcu_osd_din(8'b0),
-  .mcu_sdc_din(8'b0)
-);
-
-assign mcu_intn = 1'b1;
-
-hid hid (
-  .clk(mclk),
-  .reset(reset),
-
-  .data_in_strobe(mcu_hid_strobe),
-  .data_in_start(mcu_start),
-  .data_in(mcu_data_out),
-  .data_out(hid_data_out),
-
-  .db9_port(6'b000000),
-  .irq(),
-  .iack(1'b1),
-
-  .mouse_buttons(),
-
-  .kbd_mouse_level(),
-  .kbd_mouse_type(),
-  .kbd_mouse_data(),
-  .kbd_reset(),
-
-  .joystick0(joy1_btns),
-  .joystick1(joy2_btns)
-);
-
-`endif
-
+// -------------------------------------------------------------------------------
+		     
 // output button presses to SNES
 controller_adapter joy1_adapter (
     .clk(mclk), .snes_joy_strb(snes_joy_strb),
@@ -1072,10 +1057,6 @@ controller_adapter joy2_adapter (
 
 assign snes_joy1_di[1] = 0;  // P3
 assign snes_joy2_di[1] = 0;  // P4
-
-wire [14:0] overlay_color;
-wire [7:0] overlay_x;
-wire [7:0] overlay_y;
 
 wire [14:0] rgb5 = {B_OUT[7:3], G_OUT[7:3], R_OUT[7:3]};
 
@@ -1111,6 +1092,7 @@ iosys_bl616 #(.CORE_ID(CORE_ID), .FREQ(SNES_FREQ)) iosys (
 `else
 
 // IOSys for menu, rom loading...
+`ifndef MISTLE
 `ifdef MCU_SERV
 iosys_serv
 `else
@@ -1138,6 +1120,7 @@ iosys_picorv32
     .sd_clk(sd_clk), .sd_cmd(sd_cmd), .sd_dat0(sd_dat0), .sd_dat1(sd_dat1),
     .sd_dat2(sd_dat2), .sd_dat3(sd_dat3)
 );
+`endif //  `ifndef MISTLE		     
 
 `ifdef LATTICE
 USRMCLK usrmclk (
@@ -1242,16 +1225,16 @@ companion companion
 
     .sd_clk(sdclk), .sd_cmd(sdcmd), .sd_dat(sddat),
 
-    .mcu_data_strobe(mcu_data_strobe),
+    .mcu_sdc_strobe(mcu_data_strobe),
     .mcu_data_start(mcu_data_start),
-    .mcu_data_in(mcu_data_in),
+    .sdc_data_out(mcu_data_in),
     .mcu_data_out(mcu_data_out),
-    .mcu_irq(mcu_irq),
-    .mcu_iack(mcu_iack),        
+    .sdc_int(mcu_irq),
+    .sdc_iack(mcu_iack),        
     
     .dout(loader_do), .dout_valid(loader_do_valid), .dout_ready(loader_do_ready),
     .loading(loading),
-
+    
     .header_ok(header_ok)
 );   
 `else

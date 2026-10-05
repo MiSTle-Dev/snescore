@@ -2,36 +2,188 @@
 // SNEStang specific interface to the MiSTle companion
 //
 
-//
-// TODO: check $7fc0 first, so $ffc0 becomes the fallback
-//
-
 module companion (
-    input	 clk,
-    input	 resetn,
+    input	  clk,
+    input	  resetn,
 
     // sd card
-    output	 sd_clk,
-    inout	 sd_cmd,
-    inout [3:0]	 sd_dat,
+    output	  sd_clk,
+    inout	  sd_cmd,
+    inout [3:0]	  sd_dat,
 
+`ifdef VERILATOR		     
     // This interface is only exposed in simulation when there
-    // is no spi bus
-    input	 mcu_data_strobe,
-    input	 mcu_data_start,
-    output [7:0] mcu_data_in,      // data to MCU
-    input [7:0]  mcu_data_out,     // data from MCU
-    output	 mcu_irq,
-    input	 mcu_iack,
+    // is no spi bus and the sd card interface is driven directly
+    input	  mcu_sdc_strobe,
+    input	  mcu_data_start,
+    input [7:0]	  mcu_data_out,	// from mcu
+    output [7:0]  sdc_data_out,	// to mcu
+    output	  sdc_int,
+    input	  sdc_iack,
+`else
+    // FPGA Companion
+    input	  mcu_din,
+    output	  mcu_dout,
+    input	  mcu_clk,
+    input	  mcu_ss,
+    output	  mcu_intn,
+    input	  mcu_spare,
+
+     // OSD video overlay
+    output	  osd_enable,
+    input [7:0]	  osd_x,
+    input [7:0]	  osd_y,
+    output [14:0] osd_color,
+
+    output [11:0] joy1_btns,
+    output [11:0] joy2_btns,
+
+    output	  system_reset,
+`endif
 		  
     // rom loader interface	  
-    output [7:0] dout,
-    output	 dout_valid,
-    input	 dout_ready,
-    output reg	 loading,
-    input	 header_ok
+    output [7:0]  dout,
+    output	  dout_valid,
+    input	  dout_ready,
+    output reg	  loading,
+    input	  header_ok
 );
 
+`ifndef VERILATOR		     
+`ifdef LATTICE
+// filter companion SPI clock
+wire [15:0] mcu_clk_i_d = { mcu_clk_i_d[14:0], mcu_clk } /* synthesis syn_keep=1 */ /* synthesis syn_dont_touch=1 */;
+wire        mcu_clk_i   = ( mcu_clk_i && mcu_clk_i_d != 16'h0000) ||
+                          (!mcu_clk_i && mcu_clk_i_d == 16'hffff) /* synthesis syn_keep=1 */ /* synthesis syn_dont_touch=1 */;
+`else
+wire mcu_clk_i = mcu_clk;
+`endif
+
+wire mcu_data_strobe;   
+wire	mcu_data_start;   
+wire [7:0] mcu_data_in;   
+wire [7:0] mcu_data_out;   
+
+wire       mcu_sys_strobe;        // mcu message byte valid for sysctrl
+wire       mcu_hid_strobe;        // -"- hid
+wire       mcu_osd_strobe;        // -"- osd
+wire	   mcu_data_start;
+
+wire [7:0] mcu_data_out;
+wire [7:0] sys_data_out;  
+wire [7:0] hid_data_out;  
+wire [7:0] osd_data_out = 8'h55;  // OSD actually has no data output
+
+`ifndef VERILATOR
+// these are driven externally in simulation
+wire       mcu_sdc_strobe;        // -"- sdc
+wire [7:0] sdc_data_out;
+`endif
+   
+mcu_spi mcu (
+  .clk(clk),
+  .reset(!resetn),
+
+  // SPI interface to FPGA Companion
+  .spi_io_ss (mcu_ss),
+  .spi_io_clk(mcu_clk),
+  .spi_io_din(mcu_din),
+  .spi_io_dout(mcu_dout),
+
+  // byte wide data in/out to the submodules
+  .mcu_sys_strobe(mcu_sys_strobe),
+  .mcu_hid_strobe(mcu_hid_strobe),
+  .mcu_osd_strobe(mcu_osd_strobe),
+  .mcu_sdc_strobe(mcu_sdc_strobe),
+  .mcu_start(mcu_data_start),
+  .mcu_dout(mcu_data_out),
+  .mcu_sys_din(sys_data_out),
+  .mcu_hid_din(hid_data_out),
+  .mcu_osd_din(osd_data_out),
+  .mcu_sdc_din(sdc_data_out)
+);
+
+// decode SPI/MCU data received for human input devices (HID) and
+// convert into Amiga compatible mouse and keyboard signals
+wire [7:0] int_ack;
+wire hid_int;
+wire hid_iack = int_ack[1];
+   
+`ifndef VERILATOR
+// these are provided externally in simulation
+wire sdc_iack = int_ack[3];
+wire sdc_int;
+`endif
+   
+hid hid (
+  .clk(clk),
+  .reset(!resetn),
+
+  .data_in_strobe(mcu_hid_strobe),
+  .data_in_start(mcu_data_start),
+  .data_in(mcu_data_out),
+  .data_out(hid_data_out),
+
+  .db9_port(6'b000000),
+  .irq( hid_int ),
+  .iack( hid_iack ),
+
+  .mouse_buttons(),
+
+  .kbd_mouse_level(),
+  .kbd_mouse_type(),
+  .kbd_mouse_data(),
+  .kbd_reset(),
+
+  .joystick0(joy1_btns),
+  .joystick1(joy2_btns)
+);
+
+// TODO: wire real buttons
+wire reset = 1'b0;
+wire user = 1'b0;   
+   
+sysctrl sysctrl (
+        .clk(clk),
+        .reset(!resetn),
+
+         // interface to send and receive generic system control
+        .data_in_strobe(mcu_sys_strobe),
+        .data_in_start(mcu_data_start),
+        .data_in(mcu_data_out),
+        .data_out(sys_data_out),
+
+        // values controlled by the OSD
+        .system_reset(system_reset),
+
+        .int_out_n(mcu_intn),
+        .int_in( { 4'b0000, sdc_int, 1'b0, hid_int, 1'b0 }),
+        .int_ack( int_ack ),
+
+        .buttons( {user, reset} ),
+        .leds(),
+        .color()
+);
+   
+
+osd_u8g2 osd_u8g2 (
+        .clk(clk),
+        .reset(!resetn),
+
+        .data_in_strobe(mcu_osd_strobe),
+        .data_in_start(mcu_data_start),
+        .data_in(mcu_data_out),
+
+        // OSD video overlay
+        .osd_enable(osd_enable),
+        .osd_x(osd_x),
+        .osd_y(osd_y),
+        .osd_color(osd_color)
+);   
+
+`endif
+
+// -------------------------- rom loader --------------------------
 reg [2:0] state;
    
 wire [63:0] image_size;     // sd image size   
@@ -114,14 +266,17 @@ always @(posedge clk) begin
 	    if(rom_data_sectors > 1) begin
 	       sd_sector <= sd_sector + 32'd1;
 	       sd_rd <= 1'b1;
-	    end else
+	    end else begin
 	      loading <= 1'b0;	    
+	       state <= 3'd4;
+	    end
 	 end
       end // if (sd_done)
       
       
       // state == 0: fresh out of global reset
-      if(state == 3'd0) begin
+      // state == 4: cartridge running
+      if((state == 3'd0) || (state == 3'd4)) begin
       
 	 // wait for image to be mounted which means a cartridge
 	 // is inserted
@@ -177,17 +332,16 @@ sd_card #(
     .sddat(sd_dat),
 
     // mcu interface
-    .data_strobe(mcu_data_strobe),
+    .data_strobe(mcu_sdc_strobe),
     .data_start(mcu_data_start),
+    .data_out(sdc_data_out),
     .data_in(mcu_data_out),
-    .data_out(mcu_data_in),
 
+    .irq(sdc_int),
+    .iack(sdc_iack),	   
+	   
     .image_mounted(image_mounted),
     .image_size(image_size),           // length of image file
-
-    // interrupt to signal communication request
-    .irq(mcu_irq),
-    .iack(mcu_iack),
 
     // user read sector command interface (sync with clk32)
     .rstart({7'b0000000, sd_rd} ), 

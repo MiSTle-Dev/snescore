@@ -9,10 +9,15 @@
 `define CHIP_DSPn
 // `define CHIP_GSU
 
+// enable the individual controller interfaces
 // `define CONTROLLER_SNES
 // `define CONTROLLER_DS2
-`define CONTROLLER_MISTLE
+// `define CONTROLLER_MISTLE
 // `define CONTROLLER_USB_HID  // requires a board-specific 60 MHz uclk connection
+
+// enable the mistle framework (incl. its controller ports)
+`define MISTLE
+`define INFER_DPRAM   // TODO: Use gowin primitives!
 
 `define SDRAM_DATA_WIDTH 16
 `define SDRAM_ROW_WIDTH 13

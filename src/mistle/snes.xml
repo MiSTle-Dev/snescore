@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SNES configuration -->
+<config name="SNES" version="0">
+  <actions>
+    <action name="init">
+      <!-- (try to) load config from sd card -->
+      <load file="snes.ini"/>
+      <set id="R" value="1"/>  <!-- keep machine in reset -->
+    </action>
+    
+    <!-- the ready action is being executed once all -->
+    <!-- initialization has been done -->
+    <action name="ready">
+      <set id="R" value="0"/>  <!-- release reset -->
+    </action>
+      
+    <action name="save">
+      <!-- save config to sd card -->
+      <save file="snes.ini"/>
+    </action>
+      
+    <action name="reset">
+      <!-- trigger a system reset -->
+      <set id="R" value="1"/>
+      <delay ms="10"/>
+      <set id="R" value="0"/>      
+    </action>
+    
+    <action name="reset_hide">
+      <!-- trigger a system reset and hide OSD -->
+      <link action="reset"/>
+      <hide/>      
+    </action>      
+
+    <action name="hide">
+      <hide/>      
+    </action>      
+  </actions>
+  
+  <menu label="SNES">
+    <fileselector label="Cartridge" ext="sfc;smc" index="0" action="hide"/>
+    <menu label="Settings">
+      <button label="Save settings" action="save"/>
+    </menu>
+    <button label="Reset" action="reset_hide"/>
+  </menu>    
+</config>
