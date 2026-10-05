@@ -35,6 +35,7 @@
 `error "GSU requires either BSRAM in BRAM on BSRAM cache"
 `endif
 `endif
+`endif
 
 module snestang_top #(
     parameter SNES_FREQ = `SNES_FREQ,
@@ -400,14 +401,15 @@ assign hid2 = 12'b0;
 
 // SNES order: R L X A Right Left Down Up Start Select Y B.
 // For pads without Start/Select, hold X+Y and press A/B respectively.
+// After the first chord, keep chord mode active until X or Y is released,
+// allowing repeated A/B presses without sending the held X+Y to the game.
 // Consume the face buttons while a chord is active so games see only
 // Start/Select (plus any held directions or shoulder buttons).
 function [11:0] map_joy_chords;
     input [11:0] buttons;
     input chord_start, chord_select;
-    reg chord_active;
+    input chord_active;
     begin
-        chord_active = chord_start | chord_select;
         map_joy_chords = buttons;
         map_joy_chords[9:8] = buttons[9:8] & {2{~chord_active}}; // X, A
         map_joy_chords[3] = buttons[3] | chord_start;   // Start
@@ -429,23 +431,32 @@ assign hid_raw[1] = hid2;
 genvar joy_idx;
 generate for (joy_idx = 0; joy_idx < 2; joy_idx = joy_idx + 1) begin : joy_chords
     wire [11:0] snes_raw = joy_raw[joy_idx] | hid_raw[joy_idx];
+    wire chord_base = joy_raw[joy_idx][9] & joy_raw[joy_idx][1];
+    wire snes_chord_base = snes_raw[9] & snes_raw[1];
     reg [1:0] chord_q, snes_chord_q; // {Start, Select}
+    reg chord_active_q, snes_chord_active_q;
 
     // Only chord detection is registered; ordinary buttons stay combinational.
     always @(posedge mclk or negedge resetn) begin
         if (!resetn) begin
             chord_q <= 2'b0;
             snes_chord_q <= 2'b0;
+            chord_active_q <= 1'b0;
+            snes_chord_active_q <= 1'b0;
         end else begin
-            chord_q <= {joy_raw[joy_idx][9] & joy_raw[joy_idx][1] & joy_raw[joy_idx][8],
-                        joy_raw[joy_idx][9] & joy_raw[joy_idx][1] & joy_raw[joy_idx][0]};
-            snes_chord_q <= {snes_raw[9] & snes_raw[1] & snes_raw[8],
-                             snes_raw[9] & snes_raw[1] & snes_raw[0]};
+            chord_q <= {chord_base & joy_raw[joy_idx][8],
+                        chord_base & joy_raw[joy_idx][0]};
+            snes_chord_q <= {snes_chord_base & snes_raw[8],
+                             snes_chord_base & snes_raw[0]};
+            chord_active_q <= chord_base &
+                              (chord_active_q | joy_raw[joy_idx][8] | joy_raw[joy_idx][0]);
+            snes_chord_active_q <= snes_chord_base &
+                                   (snes_chord_active_q | snes_raw[8] | snes_raw[0]);
         end
     end
 
-    assign joy_mapped[joy_idx] = map_joy_chords(joy_raw[joy_idx], chord_q[1], chord_q[0]);
-    assign joy_snes_mapped[joy_idx] = map_joy_chords(snes_raw, snes_chord_q[1], snes_chord_q[0]);
+    assign joy_mapped[joy_idx] = map_joy_chords(joy_raw[joy_idx], chord_q[1], chord_q[0], chord_active_q);
+    assign joy_snes_mapped[joy_idx] = map_joy_chords(snes_raw, snes_chord_q[1], snes_chord_q[0], snes_chord_active_q);
 end endgenerate
 
 wire [11:0] joy1_mapped = joy_mapped[0], joy2_mapped = joy_mapped[1];
