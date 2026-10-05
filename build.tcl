@@ -67,6 +67,7 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/mistle/hid.v"
     add_file -type verilog "src/mistle/osd_u8g2.v"
     add_file -type verilog "src/mistle/sd_card.v"
+    add_file -type verilog "src/mistle_gw5a_25/sector_dpram.v"
     add_file -type verilog "src/mistle/sd_rw.v"
     add_file -type verilog "src/mistle/sdcmd_ctrl.v"
     add_file "src/mistle/snes_xml.hex"

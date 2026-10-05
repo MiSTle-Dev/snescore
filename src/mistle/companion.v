@@ -30,11 +30,14 @@ module companion (
     input	  mcu_spare,
 
      // OSD video overlay
+    input	  osd_clk,
     output	  osd_enable,
     input [7:0]	  osd_x,
     input [7:0]	  osd_y,
     output [14:0] osd_color,
 
+    input [1:0]   buttons,
+		  
     output [11:0] joy1_btns,
     output [11:0] joy2_btns,
 
@@ -139,10 +142,6 @@ hid hid (
   .joystick1(joy2_btns)
 );
 
-// TODO: wire real buttons
-wire reset = 1'b0;
-wire user = 1'b0;   
-   
 sysctrl sysctrl (
         .clk(clk),
         .reset(!resetn),
@@ -160,7 +159,7 @@ sysctrl sysctrl (
         .int_in( { 4'b0000, sdc_int, 1'b0, hid_int, 1'b0 }),
         .int_ack( int_ack ),
 
-        .buttons( {user, reset} ),
+        .buttons( buttons ),
         .leds(),
         .color()
 );
@@ -175,6 +174,7 @@ osd_u8g2 osd_u8g2 (
         .data_in(mcu_data_out),
 
         // OSD video overlay
+        .osd_clk(osd_clk),
         .osd_enable(osd_enable),
         .osd_x(osd_x),
         .osd_y(osd_y),
@@ -184,9 +184,9 @@ osd_u8g2 osd_u8g2 (
 `endif
 
 // -------------------------- rom loader --------------------------
-reg [2:0] state;
+reg [1:0] state;
    
-wire [63:0] image_size;     // sd image size   
+wire [23:0] image_size;     // cartridge image size   
 wire [7:0] image_mounted;   // up to eight images supported
 
 
@@ -202,22 +202,22 @@ wire [8:0] sd_outaddr;
 wire [7:0] sd_outdata;  
 
 // number of data sectors expected during download
-reg [15:0] rom_data_sectors;   
+reg [14:0] rom_data_sectors;   
    
 assign dout = sd_outdata;
 assign dout_valid = 
-	    ((state == 3'd1) && sd_outen && (sd_outaddr < 64)) ||
-	    ((state == 3'd2) && sd_outen && (sd_outaddr >= 448)) ||
-	    ((state == 3'd3) && sd_outen);   
+	    ((state == 2'd1) && sd_outen && (sd_outaddr < 64)) ||
+	    ((state == 2'd2) && sd_outen && (sd_outaddr >= 448)) ||
+	    ((state == 2'd3) && sd_outen);   
    
 always @(posedge clk) begin
    if(!resetn) begin
-      state <= 3'd0;
+      state <= 2'd0;
       sd_rd <= 1'b0;
       loading <= 1'b0;      
    end else begin
       // sd card has delivered one byte
-      if(sd_outen && (state == 3'd0))
+      if(sd_outen && (state == 2'd0))
 	   $display("companion.v: Unexpeced sd card data");
       
       if(sd_busy)
@@ -225,20 +225,20 @@ always @(posedge clk) begin
       
       if(sd_done) begin
 	 // reading header sector from begin of file
-	 if(state == 3'd1) begin
+	 if(state == 2'd1) begin
 	    $display("companion.v: prepended header sector done: %d", header_ok);
 
 	    if(header_ok) begin	    	    
 	       sd_sector <= 32'd1;	    
-	       state <= 3'd3;		  
+	       state <= 2'd3;		  
 	       sd_rd <= 1'b1;
 	    end else begin
 	       $display("companion.v: header parsing finally failed");
 	    end
-	 end // if (state == 3'd1)
+	 end // if (state == 2'd1)
 
 	 // reading header sector from within the file
-	 if(state == 3'd2) begin
+	 if(state == 2'd2) begin
 
 	    // the embedded header may either be at offset $7fc0 or $ffc0. We
 	    // check $ffc0 first and if the result does not seem to be a
@@ -247,7 +247,7 @@ always @(posedge clk) begin
 
 	    // check if header was detected ok
 	    if(header_ok) begin	    
-	       state <= 3'd3;		  
+	       state <= 2'd3;		  
 	       sd_sector <= 32'd0;	    
 	       sd_rd <= 1'b1;
 	    end else if(sd_sector == 32'd127) begin
@@ -257,26 +257,24 @@ always @(posedge clk) begin
 	       $display("companion.v: header parsing finally failed");
 	    end
 	       
-	 end // if (state == 3'd2)
+	 end // if (state == 2'd2)
 
 	 // reading data sector
-	 if(state == 3'd3) begin
-	    rom_data_sectors <= rom_data_sectors - 16'd1;	    
+	 if(state == 2'd3) begin
+	    rom_data_sectors <= rom_data_sectors - 15'd1;	    
 	    
 	    if(rom_data_sectors > 1) begin
 	       sd_sector <= sd_sector + 32'd1;
 	       sd_rd <= 1'b1;
 	    end else begin
 	      loading <= 1'b0;	    
-	       state <= 3'd4;
+	       state <= 2'd0;
 	    end
 	 end
       end // if (sd_done)
       
-      
-      // state == 0: fresh out of global reset
-      // state == 4: cartridge running
-      if((state == 3'd0) || (state == 3'd4)) begin
+      // state == 0: fresh out of global reset or cartridge running
+      if(state == 2'd0) begin
       
 	 // wait for image to be mounted which means a cartridge
 	 // is inserted
@@ -285,22 +283,22 @@ always @(posedge clk) begin
 	    // 128 and may have an addional 512 byte header
 	    // we can load images up to 4MB
 	    
-	    if((image_size & 64'hfffe0000) && 
-	       !(image_size & 64'h1fdff) &&
-	       ((image_size & 64'hfffe0000) < 64'd4194304)) begin
+	    if((image_size & 24'hfe0000) && 
+	       !(image_size & 24'h1fdff) &&
+	       ((image_size & 24'hfe0000) < 24'd4194304)) begin
 
 	       if(image_size[9]) begin	       
 		  // some files have a 512 byte header of which the first
 		  // 64 bytes are of interest
-		  state <= 3'd1;
-		  rom_data_sectors <= image_size[24:9] - 16'd1;
+		  state <= 2'd1;
+		  rom_data_sectors <= image_size[23:9] - 15'd1;
 		  sd_sector <= 32'd0;
 	       end else begin
 		  // some don't have an extra header. Then the header data is
 		  // at byte offset $7fc0 or $ffc0 which is the last 64
 		  // bytes of sector 63 or 127
-		  state <= 3'd2;
-		  rom_data_sectors <= image_size[24:9];
+		  state <= 2'd2;
+		  rom_data_sectors <= image_size[23:9];
 		  sd_sector <= 32'd127;
 	       end
 
@@ -309,9 +307,9 @@ always @(posedge clk) begin
 	       loading <= 1'b1;	       
 	       
 	    end else begin
-	       $display("companion.v: Unsupported image size: %0d", image_size & 64'hfffe0000 );
+	       $display("companion.v: Unsupported image size: %0d", image_size & 24'hfe0000 );
 	       // TODO: show some visible sign of this failure ...
-	    end // else: !if((image_size & 64'hfffe0000) &&...
+	    end // else: !if((image_size & 24'hfe0000) &&...
 	 end
       end
    end // else: !if(!resetn)

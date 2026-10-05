@@ -79,6 +79,8 @@ module snestang_top #(
     input			    mcu_ss,
     output			    mcu_intn,
     input			    mcu_spare,
+
+    input                           s1,
 `endif
 
 `else
@@ -1023,11 +1025,14 @@ companion companion
     .mcu_spare(mcu_spare),
 
     // integrate OSD into video data
+    .osd_clk(hclk),
     .osd_enable(overlay),
     .osd_color(overlay_color),
     .osd_x(overlay_x),
     .osd_y(overlay_y),
 
+    .buttons({!s1,s0}),
+    
     // values set via OSD/config file
     .system_reset(osd_reset),
     

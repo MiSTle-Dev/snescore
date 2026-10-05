@@ -10,22 +10,9 @@
 // stress test concurrent FPGA Companion and Core accesses etc.
 //
 
-//
-//
-//  This takes two optional global defines:
-//  - NO_COMPANION, disables the FPGA Companion interface entirely
-//  - DISABLE_ROM_IMAGE disables the ROM image download interface
-//       to save some logic if unused. This is implied by NO_COMPANION
-//  - IMAGE_INDEX, index of an (optional) image to be used for direct
-//       SD card access without companion (NO_COMPANION set)
-//  - IMAGE_SIZE, size in bytes of an (optional) image to be used for direct
-//       SD card access without companion (NO_COMPANION set)
-//
-
 module sd_card # (
     parameter [2:0]	CLK_DIV = 3'd2,
-    parameter		SIMULATE = 0,
-	parameter		IMAGE_FIFO_BITS = 1
+    parameter		SIMULATE = 0
 ) (
     // rstn active-low, 1:working, 0:reset
     input			  rstn,
@@ -44,7 +31,7 @@ module sd_card # (
     input			  iack,
    
     // export sd image size   
-    output reg [63:0] image_size,
+    output reg [23:0] image_size,
     // up to eight drive images supported
     output reg [7:0]  image_mounted,
 
@@ -252,7 +239,7 @@ always @(posedge clk, negedge rstn) begin
       command <= 8'hff;
       rstart_int <= 1'b0;
       wstart_int <= 1'b0;
-      image_size <= 64'd0;
+      image_size <= 24'd0;
       image_mounted <= 8'b00000000;
       direct_start_we <= 1'b0;
       dinb_we <=1'b0;
@@ -453,7 +440,7 @@ always @(posedge clk, negedge rstn) begin
 			   // MCU reports that some image has been inserted. If
 			   // the image size is 0, then no image is inserted
 			   if(byte_cnt == 4'd0) image_target <= data_in;
-			   if(byte_cnt == 4'd1) image_size[63:24] <= { 32'h00000000, data_in };
+			   // byte_cnt == 4'd1: bits 31:24 are ignored
 			   if(byte_cnt == 4'd2) image_size[23:16] <= data_in;
 			   if(byte_cnt == 4'd3) image_size[15:8]  <= data_in;
 			   if(byte_cnt == 4'd4) begin 
@@ -461,7 +448,7 @@ always @(posedge clk, negedge rstn) begin
 				  image_mounted[image_target] <= 1'b1;
 				  direct_start_wdata <= 32'b0;
 				  direct_start_we <= 1'b1;
-				  $display("sd_card.v: MCU inserted image %0d with %0d bytes", image_target, { image_size[63:8], data_in } );
+				  $display("sd_card.v: MCU inserted image %0d with %0d bytes", image_target, { image_size[23:8], data_in } );
 			   end
 			end
 			
@@ -505,26 +492,6 @@ always @(posedge clk, negedge rstn) begin
 			   end
 			end
 
-            // SDC CMD 7: LARGE FILE INSERTED, usually used for HDD images > 4GB
-            if(command == 8'd7) begin
-               // MCU reports that some large image has been inserted.
-               if(byte_cnt == 4'd0) image_target <= data_in;
-               // it should be ok to limit image size to 1TiB
-               if(byte_cnt == 4'd1) image_size[63:56] <= 8'h00;
-               if(byte_cnt == 4'd2) image_size[55:48] <= 8'h00;
-               if(byte_cnt == 4'd3) image_size[47:40] <= 8'h00;
-               if(byte_cnt == 4'd4) image_size[39:32] <= data_in;
-               if(byte_cnt == 4'd5) image_size[31:24] <= data_in;
-               if(byte_cnt == 4'd6) image_size[23:16] <= data_in;
-               if(byte_cnt == 4'd7) image_size[15:8]  <= data_in;
-               if(byte_cnt == 4'd8) begin
-                  image_size[7:0] <= data_in;
-                  image_mounted[image_target] <= 1'b1;
-                  direct_start_wdata <= 32'b0;
-                  direct_start_we <= 1'b1;
-                  $display("sd_card.v: MCU inserted large image %0d with %0d bytes", image_target, { image_size[63:8], data_in } );
-               end
-            end
 			if(byte_cnt != 4'd15) byte_cnt <= byte_cnt + 4'd1;    
          end
       end // else: !if(!data_strobe)
@@ -594,9 +561,9 @@ always @(posedge clock) begin
 		q_b <= ram[address_b];
 	end
 end
-`endif //  `ifdef INFER_DPRAM
    
 endmodule
+`endif //  `ifdef INFER_DPRAM
 
 // To match emacs with gw_ide default
 // Local Variables:

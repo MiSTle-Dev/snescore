@@ -17,7 +17,7 @@
 
 // enable the mistle framework (incl. its controller ports)
 `define MISTLE
-`define INFER_DPRAM   // TODO: Use gowin primitives!
+// `define INFER_DPRAM
 
 `define SDRAM_DATA_WIDTH 16
 `define SDRAM_ROW_WIDTH 13

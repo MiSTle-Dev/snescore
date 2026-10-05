@@ -13,6 +13,7 @@ module osd_u8g2 (
   input        data_in_start,
   input [7:0]  data_in,
 	    
+  input        osd_clk,
   output       osd_enable,
   input [7:0]  osd_x,
   input [7:0]  osd_y,
@@ -26,6 +27,7 @@ reg enabled;
 assign osd_enable = enabled?(osd_x >= 64 && osd_x < 192 && osd_y >= 64 && osd_y < 128):0;   
 
 // bgr555: white foreground pixel, dark red background
+wire osd_pix;   
 assign osd_color = osd_pix?15'b11111_11111_11111:15'b00000_00000_01111;		     
 
 // -------------------------- OSD painting -------------------------------
@@ -75,7 +77,7 @@ wire [6:0] vpix  = osd_y-64;    // vertical pixel position inside OSD
 
 reg [7:0] buffer_byte;
 assign osd_pix = buffer_byte[vpix[2:0]];
-always @(posedge clk)
+always @(posedge osd_clk)
   buffer_byte <= buffer[{ vpix[5:3], hpixD[6:0] }];
    
 endmodule
