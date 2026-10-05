@@ -12,6 +12,8 @@ package board_config is
 
     constant SDRAM_3CH : boolean := true;
     constant BSRAM_BRAM : boolean := false;
+    constant BSRAM_CACHE : boolean := true;
+
     constant CHIP_DSPn : boolean := true;
     constant CHIP_GSU  : boolean := false;
     constant DSP1_ROM_LIMIT : boolean := false;

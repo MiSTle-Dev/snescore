@@ -24,7 +24,7 @@ if {$argc >= 3} {
 if {$dev eq "nano20k"} {
     set_device GW2AR-LV18QN88C8/I7 -device_version C
     add_file "src/nano20k/config.vh"
-    add_file "src/nano20k/config.vhd"
+    add_file -type vhdl "src/nano20k/config.vhd"
     add_file -type verilog "src/snestang_top.v"
     add_file -type verilog "src/snes2hdmi_nano.v"
     add_file -type cst "src/nano20k/snestang.cst"
@@ -36,23 +36,28 @@ if {$dev eq "nano20k"} {
 } elseif {$dev eq "primer25k"} {
     set_device GW5A-LV25MG121NC1/I0 -device_version A
     if {$controller eq "snes"} {
-        add_file src/primer25k/config_snescontroller.v
-        add_file -type cst "src/primer25k/snestang_snescontroller.cst"
+        add_file "src/primer25k/snes_controller/config.vh"
+        add_file -type vhdl "src/primer25k/snes_controller/config.vhd"
+        add_file -type cst "src/primer25k/snes_controller/snestang.cst"
     } elseif {$controller eq "ds2"} {
-        add_file src/primer25k/config.v
-        add_file -type cst "src/primer25k/snestang.cst"
+        add_file "src/primer25k/ds_controller/config.vh"
+        add_file -type vhdl "src/primer25k/ds_controller/config.vhd"
+        add_file -type cst "src/primer25k/ds_controller/snestang.cst"
     } else {
         error "Unknown controller $controller"
     }
+    add_file -type verilog "src/snestang_top.v"
     add_file -type verilog "src/snes2hdmi.v"
     add_file -type verilog "src/primer25k/gowin_pll_27.v"
     add_file -type verilog "src/primer25k/gowin_pll_hdmi.v"
     add_file -type verilog "src/primer25k/gowin_pll_snes.v"
+    add_file -type verilog "src/sdram_cl2_3ch.v"
+    add_file -type verilog "src/bsram_cache.v"
     set_option -output_base_name snestang_${dev}_${controller}
 } elseif {$dev eq "mistle_gw5a_25"} {
     set_device GW5A-LV25LQ144C1/I0 -device_version A
     add_file "src/mistle_gw5a_25/config.vh"
-    add_file "src/mistle_gw5a_25/config.vhd"
+    add_file -type vhdl "src/mistle_gw5a_25/config.vhd"
     add_file -type verilog "src/snestang_top.v"
     add_file -type cst "src/mistle_gw5a_25/snestang.cst"
     add_file -type verilog "src/snes2hdmi.v"
