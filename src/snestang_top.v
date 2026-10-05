@@ -202,7 +202,8 @@ wire s1 = ~s1_n;
 
 wire pll_snes_lock, pll_hdmi_lock;
 wire sdram_ready;
-wire resetn, hclk_resetn, uclk_resetn, sdram_resetn;
+wire resetn, fclk_resetn;
+wire hclk_resetn, uclk_resetn, sdram_resetn;
 wire iosys_resetn = resetn & ~s0;
 wire reset = ~resetn;
 
@@ -300,7 +301,7 @@ rst_sync resets (
     .clk_mclk(mclk), .clk_fclk(fclk), .clk_hclk(hclk), .clk_uclk(uclk),
     .pll_snes_lock(pll_snes_lock), .pll_hdmi_lock(pll_hdmi_lock),
     .sdram_ready(sdram_ready),
-    .rst_mclk_n(resetn),
+    .rst_mclk_n(resetn), .rst_fclk_n(fclk_resetn),
     .rst_hclk_n(hclk_resetn), .rst_uclk_n(uclk_resetn),
     .rst_sdram_n(sdram_resetn)
 );
@@ -348,6 +349,7 @@ wire        ARAM_WE_N;
 wire  [7:0] ARAM_Q;
 wire  [7:0] ARAM_D;
 
+wire        GSU_ACTIVE;
 wire        GSU_RAM_ACCESS;
 wire        GSU_ROM_ACCESS;
 
@@ -511,7 +513,7 @@ main #(
     .ROM_CE_N(ROM_CE_N), .ROM_OE_N(ROM_OE_N), .ROM_WE_N(ROM_WE_N),
     .ROM_WORD(ROM_WORD), .ROM_DONE(ROM_DONE),
 
-    .GSU_RAM_ACCESS(GSU_RAM_ACCESS), .GSU_ROM_ACCESS(GSU_ROM_ACCESS),
+    .GSU_ACTIVE(GSU_ACTIVE), .GSU_RAM_ACCESS(GSU_RAM_ACCESS), .GSU_ROM_ACCESS(GSU_ROM_ACCESS),
 
     .BSRAM_ADDR(BSRAM_ADDR), .BSRAM_D(BSRAM_D),	.BSRAM_Q(BSRAM_Q),
     .BSRAM_CE_N(BSRAM_CE_N), .BSRAM_OE_N(BSRAM_OE_N), .BSRAM_WE_N(BSRAM_WE_N),
@@ -614,12 +616,16 @@ wire        bsram_sd_req;
 wire        bsram_sd_ack;
 wire        bsram_sd_done;
 wire        bsram_cache_busy;
+reg         bsram_uncached;
+
+reg         bsram_cache_clear;
+reg   [2:0] bsram_cache_snes_resetn_r;
 
 bsram_cache bsram_cache_inst (
-    .clk(fclk), .resetn(resetn),
+    .clk(fclk), .resetn(fclk_resetn), .clear(bsram_cache_clear),
     .front_addr(bsram_addr_sd), .front_din(bsram_din),
     .front_we(bsram_we), .front_req(bsram_req),
-    .front_inhibit(~bsram_gsu), .front_ack(bsram_req_ack),
+    .front_inhibit({bsram_uncached, ~bsram_gsu}), .front_ack(bsram_req_ack),
     .front_done(bsram_done), .front_dout(bsram_dout),
     .sd_addr(bsram_sd_addr), .sd_din(bsram_sd_din),
     .sd_ds(bsram_sd_ds), .sd_we(bsram_sd_we), .sd_req(bsram_sd_req),
@@ -627,8 +633,19 @@ bsram_cache bsram_cache_inst (
     .busy(bsram_cache_busy), .dbg_state()
 );
 // Update the tracked address/write strobe only when the cache can accept a request.
-wire bsram_write_request = ((bsram_wr && (BSRAM_ADDR != bsram_addr_sd)) || (bsram_wr && ~bsram_wr_r)) && !bsram_cache_busy;
-wire bsram_read_request  =  (bsram_rd && (BSRAM_ADDR != bsram_addr_sd)) && !bsram_cache_busy;
+wire bsram_write_request = ((bsram_wr && (BSRAM_ADDR != bsram_addr_sd)) || (bsram_wr && ~bsram_wr_r)) && !bsram_cache_busy && snes_resetn;
+wire bsram_read_request  =  (bsram_rd && (BSRAM_ADDR != bsram_addr_sd || !bsram_word_valid)) && !bsram_cache_busy && snes_resetn;
+
+always @(posedge fclk) begin
+    if (!fclk_resetn) begin
+        bsram_cache_snes_resetn_r <= 0;
+        bsram_cache_clear <= 0;
+    end else begin
+        // Two synchronization stages followed by the previous synchronized value.
+        bsram_cache_snes_resetn_r <= {bsram_cache_snes_resetn_r[1:0], snes_resetn};
+        bsram_cache_clear <= !bsram_cache_snes_resetn_r[1] && bsram_cache_snes_resetn_r[2];
+    end
+end
 `else
 // Update the tracked address/write strobe only when the cache can accept a request.
 wire bsram_write_request = ((bsram_wr && (BSRAM_ADDR != bsram_addr_sd)) || (bsram_wr && ~bsram_wr_r));
@@ -670,6 +687,9 @@ always @(posedge mclk) begin
         wram_we <= 0;
         bsram_wr_r <= 0;
         bsram_we <= 0;
+`ifdef BSRAM_CACHE
+        bsram_uncached <= 0;
+`endif
         aram_wr_r <= 0;
 
         rom_word_valid <= 0;
@@ -689,6 +709,12 @@ always @(posedge mclk) begin
         if (!wram_wr) wram_wr_r <= 0;
         if (!bsram_wr) bsram_wr_r <= 0;
         if (!aram_wr) aram_wr_r <= 0;
+`ifdef BSRAM_CACHE
+        if (!snes_resetn) begin
+            bsram_word_valid <= 0;
+            bsram_wr_r <= 0;
+        end
+`endif
 
         if (rom_req == rom_req_ack) begin
             if (rom_rd && (ROM_ADDR[22:1] != rom_addr_sd[22:1] || !rom_word_valid)) begin
@@ -742,6 +768,14 @@ always @(posedge mclk) begin
             bsram_req <= ~bsram_req;
             bsram_din <= BSRAM_D;
             bsram_gsu <= GSU_RAM_ACCESS;
+`ifdef BSRAM_CACHE
+            // Cache only GSU cartridges; their shared SNES/RV region also bypasses.
+`ifdef NANO
+            bsram_uncached <= !GSU_ACTIVE || BSRAM_ADDR[16:10] == 7'h1F; // include 128 KiB mirrors
+`else
+            bsram_uncached <= !GSU_ACTIVE || BSRAM_ADDR[19:10] == 10'h01F;
+`endif
+`endif
         end
 `ifndef BSRAM_CACHE
         end

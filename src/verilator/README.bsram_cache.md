@@ -25,6 +25,22 @@ an invalid-way tie), then the LRU way. A successful hit or installation makes th
 other way LRU. One bit gives exact LRU for two ways. A bypassed inhibited read
 does not install data or change LRU.
 
+`front_inhibit[0]` avoids dirty victim eviction on a read miss, preserving the
+original inhibit behavior. `front_inhibit[1]` bypasses all cache lookups and
+updates: reads and masked byte writes go directly to SDRAM and complete only
+after `sd_done`. This fixed exclusion must apply from reset to every alias of
+the shared region; changing it while dirty entries exist requires flushing them.
+The top latches bit 1 when issuing a request: all non-GSU cartridges bypass the
+cache; GSU cartridges bypass BSRAM offsets `0x07C00-0x07FFF` (including the
+128 KiB mirrors on Nano), keeping the SNES/RV shared region uncached.
+
+The `clear` input accepts a pulse when a new game starts loading. It blocks new
+top-level SNES requests, finishes already queued requests and outstanding
+writeback, then reuses the metadata-clear sequence to discard cached entries.
+Resident dirty data is discarded, not flushed. Front and SDRAM handshake phases
+and the last front response are preserved. The top synchronizes the SNES reset
+falling edge into `fclk` and invalidates its tracked BSRAM read result during loading.
+
 The test discovers the number of sets from `$size(dut.meta)` and checks both
 data RAM depths. Its geometry calculations and sweeps adapt to power-of-two
 capacities up to 16,384 total words (`SET_BITS=13`). Expected data and replacement
@@ -44,6 +60,10 @@ no DUT metadata contents are used to predict transfers or victims.
 - Inhibited reads bypass dirty victims without allocation, writeback or LRU
   changes; clean misses and same-tag partial fills still cache. Inhibited write
   misses still allocate and write back their dirty victims.
+- Fully uncached repeated reads, masked low/high byte writes visible in backing
+  memory at completion, dirty resident preservation, and bypass requests waiting
+  for outstanding writeback completion. Both settings of the lower inhibit bit
+  are exercised with full bypass enabled.
 - Front input changes after acceptance, including the inhibit flag, to verify
   the accepted payload is retained.
 - Read fills and write allocations complete before deferred victim writeback.
@@ -51,6 +71,9 @@ no DUT metadata contents are used to predict transfers or victims.
   and evictions wait for its completion.
 - Queued front requests, reset during unaccepted/accepted incomplete fills and
   writebacks, initialization-held requests and all four ack/done reset phases.
+- Clear with both front handshake phases, during a fill and during accepted or
+  unaccepted deferred writeback; completion ordering, dirty invalidation, and no
+  handshake reset or stale request replay.
 - Random hotspots, conflicting tags, repeated and full-range addresses, inhibit
   variation, independent acceptance/completion latencies and early/late read data.
 - Every active state, dirty mask, deferred read/write victim mask, inhibit mask,
@@ -80,6 +103,8 @@ registers while replacement updates the RAMs. `WRITEBACK` copies it to the backe
 registers before returning to IDLE; `write_waiting` guards subsequent transfers
 until done. The test checks completion-time front data; the cache also exposes
 SDRAM data directly while waiting for a fill.
+Fully uncached transfers also use `LOOKUP`, `WAIT_FILL`, and `RESPOND`, without
+allocating or evicting entries; bypass writes retain the accepted byte output.
 
 This models the cache/controller boundary. It does not verify production SDRAM
 pins, arbitration, refresh, clock-domain crossings, or implementation timing.
