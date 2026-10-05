@@ -14,7 +14,7 @@
 #include "verilated.h"
 #include <verilated_fst_c.h>
 
-#ifdef ENABLE_COMPANION
+#ifdef MISTLE
 #include "sd_card_config.h"
 #endif
 
@@ -41,7 +41,7 @@ bool trace = false;
 
 void usage() {
 	printf("Usage: sim [-r ROM."
-#ifdef ENABLE_COMPANION	       
+#ifdef MISTLE	       
 	       "sfc/smc"
 #else
 	       "hex"
@@ -61,7 +61,7 @@ vector<string> tokenize(string s);
 void trace_on();
 void trace_off();
 
-#ifdef ENABLE_COMPANION
+#ifdef MISTLE
 Vsnestang_top* tb;  // sd_card expects a global tb
 
 // optionally parse a sector address into track/side/sector
@@ -86,7 +86,7 @@ int main(int argc, char** argv, char** env) {
 	command_args.reserve(argc + 1);
 	for (int i = 0; i < argc; i++) {
 		if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
-#ifdef ENABLE_COMPANION
+#ifdef MISTLE
 			sd_set_file(0, argv[++i]);
 #else
 			command_strings.emplace_back(string("+ROM=") + argv[++i]);
@@ -100,7 +100,7 @@ int main(int argc, char** argv, char** env) {
 	Verilated::commandArgs(command_args.size(), command_args.data());
 	Vsnestang_top* new_top = new Vsnestang_top;
 	top = new_top;
-#ifdef ENABLE_COMPANION
+#ifdef MISTLE
 	tb = new_top;
 #endif
 	Vsnestang_top_snestang_top *snes = top->snestang_top;
@@ -164,7 +164,7 @@ int main(int argc, char** argv, char** env) {
         return 1;
     }
 
-#ifdef ENABLE_COMPANION
+#ifdef MISTLE
     sd_init();
 #endif
     
@@ -178,7 +178,7 @@ int main(int argc, char** argv, char** env) {
 	while (max_sim_time == 0 || simulation_time < max_sim_time) {
 		top->sys_clk ^= 1;
 
-#ifdef ENABLE_COMPANION
+#ifdef MISTLE
 		// handle sd card emulation on one edge of the 1/8 sys_clk
 		// which in turn is the mclk the sd card itself runs on
 		static int mcnt = 0;

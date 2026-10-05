@@ -123,29 +123,29 @@ static int mcu_read_handler(int index) {
   static int cnt = -1;
   static uint8_t buf[512];
   
-  // printf("%.3fms MCU read handler(%d), %02x\n", simulation_time*1000, index, tb->mcu_data_out);
+  // printf("%.3fms MCU read handler(%d), %02x\n", simulation_time*1000, index, tb->mcu_data_in);
   
   if(!index) {
     cnt = -1;
-    tb->mcu_data_in = 3;  // MCU read command
+    tb->mcu_data_out = 3;  // MCU read command
     tb->mcu_data_start = 1;
 
     sector = random() & 0xffff;
   }
-  else if(index == 1) tb->mcu_data_in = sector >> 24;
-  else if(index == 2) tb->mcu_data_in = sector >> 16;
-  else if(index == 3) tb->mcu_data_in = sector >> 8;
-  else if(index == 4) tb->mcu_data_in = sector >> 0;
+  else if(index == 1) tb->mcu_data_out = sector >> 24;
+  else if(index == 2) tb->mcu_data_out = sector >> 16;
+  else if(index == 3) tb->mcu_data_out = sector >> 8;
+  else if(index == 4) tb->mcu_data_out = sector >> 0;
   if(index < 5) return 0;
 
   if(cnt<0) {
-    // printf("WAIT flag %02x\n", tb->mcu_data_out);    
-    if(tb->mcu_data_out) return 0;   // still waiting
+    // printf("WAIT flag %02x\n", tb->mcu_data_in);    
+    if(tb->mcu_data_in) return 0;   // still waiting
     cnt = 0;
     return 0;
   }
   
-  buf[cnt++] = tb->mcu_data_out;
+  buf[cnt++] = tb->mcu_data_in;
   if(cnt == 512) {
     uint8_t ref[512];
     
@@ -170,24 +170,24 @@ static int mcu_write_handler(int index) {
   if(!index) {
     // fake image is 64k sectors
     sector = random() & 0xffff;
-    tb->mcu_data_in = 5;     // MCU write command
+    tb->mcu_data_out = 5;     // MCU write command
     tb->mcu_data_start = 1;  //     -"-
     sd_setup_fake_sector(sector, buf, 0x00);
     wait = 0;
   }
-  else if(index == 1) tb->mcu_data_in = sector >> 24;
-  else if(index == 2) tb->mcu_data_in = sector >> 16;
-  else if(index == 3) tb->mcu_data_in = sector >> 8;
-  else if(index == 4) tb->mcu_data_in = sector >> 0;
-  else if(index >= 5) tb->mcu_data_in = buf[index-5];
+  else if(index == 1) tb->mcu_data_out = sector >> 24;
+  else if(index == 2) tb->mcu_data_out = sector >> 16;
+  else if(index == 3) tb->mcu_data_out = sector >> 8;
+  else if(index == 4) tb->mcu_data_out = sector >> 0;
+  else if(index >= 5) tb->mcu_data_out = buf[index-5];
   if(index < 512+5) return 0;
 
   wait++;
-  if(!tb->mcu_data_out)
+  if(!tb->mcu_data_in)
     printf("Write done after %d\n", wait);
   
   // core returns 01 as long as the sector has not been written
-  return !tb->mcu_data_out;    
+  return !tb->mcu_data_in;    
 }
 
 #ifdef MAX_ROMS
@@ -216,13 +216,13 @@ static int mcu_image_handler(int index_ext) {
   if(index == 0) {    
     printf(YELLOW "%.3fms MCU start image transfer" END "\n", simulation_time*1000);
     tb->mcu_data_start = 1;
-    tb->mcu_data_in = 8;
+    tb->mcu_data_out = 8;
   } else if(index == 1)
-    tb->mcu_data_in = 2;         // image write subcommand
+    tb->mcu_data_out = 2;         // image write subcommand
   else if(index == 2)
-    tb->mcu_data_in = 0;         // TODO: image no!
+    tb->mcu_data_out = 0;         // TODO: image no!
   else
-    tb->mcu_data_in = rom_image_buffer[rom_image_buffer_index++];
+    tb->mcu_data_out = rom_image_buffer[rom_image_buffer_index++];
 
   index++;
   
@@ -243,19 +243,19 @@ static int mcu_irq_handler(int index) {
   static uint8_t req;
   static uint32_t sector;
   
-  // printf("%.3fms MCU irq handler(%d), %02x\n", simulation_time*1000, index, tb->mcu_data_out);
+  // printf("%.3fms MCU irq handler(%d), %02x\n", simulation_time*1000, index, tb->mcu_data_in);
 
   if(index == 0) {
-    tb->mcu_data_in = 1;  // get status
+    tb->mcu_data_out = 1;  // get status
     tb->mcu_data_start = 1;
     req = 0;
   } else if(index == 1)
-    tb->mcu_data_in = 0;
+    tb->mcu_data_out = 0;
   else if(index == 2) {
-    req = tb->mcu_data_out;
+    req = tb->mcu_data_in;
     sector = 0;
   } else if(index <= 6)
-    sector = (sector << 8) | tb->mcu_data_out; 
+    sector = (sector << 8) | tb->mcu_data_in; 
 
   // req == 0 means this is not a request for sector IO
   if(req) {
@@ -269,15 +269,15 @@ static int mcu_irq_handler(int index) {
     // send reply from index 6 on
     if(index == 7) {
       tb->mcu_data_start = 1;
-      tb->mcu_data_in = 2;
+      tb->mcu_data_out = 2;
     } else if(index > 7 && index <= 11) {
       tb->mcu_data_start = 0;
-      tb->mcu_data_in = (sector >> 24);
+      tb->mcu_data_out = (sector >> 24);
       sector <<= 8;
     }
 
     // monitor until the core reports "not busy"
-    return (index > 11) && !tb->mcu_data_out;
+    return (index > 11) && !tb->mcu_data_in;
   }
 
 #ifdef MAX_ROMS
@@ -291,20 +291,20 @@ static int mcu_irq_handler(int index) {
     if(index == 7) {
       printf("\033[1;33m%.3fms MCU no sector request\033[0m\n", simulation_time*1000);
       tb->mcu_data_start = 1;
-      tb->mcu_data_in = 8;
+      tb->mcu_data_out = 8;
     } else if(index == 8)
-      tb->mcu_data_in = 0;         // image status subcommand
+      tb->mcu_data_out = 0;         // image status subcommand
     else if(index == 9)
-      tb->mcu_data_in = 0;         // TODO: image no!
+      tb->mcu_data_out = 0;         // TODO: image no!
     else if(index == 10) {
-      accepted = (tb->mcu_data_out&0x80)?1:0;
+      accepted = (tb->mcu_data_in&0x80)?1:0;
       printf("%s%.3fms image status: %02x -> %s" END "\n",
-	     accepted?GREEN:RED, simulation_time*1000, tb->mcu_data_out,
+	     accepted?GREEN:RED, simulation_time*1000, tb->mcu_data_in,
 	     accepted?"OK":"NOT ACCEPTED");
     } else if(index == 11)
-      buffer_size = tb->mcu_data_out;
+      buffer_size = tb->mcu_data_in;
     else if(index == 12) {
-      buffer_size = 256 * buffer_size + tb->mcu_data_out;
+      buffer_size = 256 * buffer_size + tb->mcu_data_in;
       printf("%.3fms image buffer size: %d\n", simulation_time*1000, buffer_size);
 
       // the buffer should be gone by now. Otherwise the core has raised the IRQ
@@ -354,27 +354,27 @@ static int mcu_sdc_insert_handler(int index) {
   if(drive < MAX_DRIVES) {   
     if(file_image_len[drive] >= 0) {
       if(!drive_idx) {
-	tb->mcu_data_in = 4;  // insert disk command
+	tb->mcu_data_out = 4;  // insert disk command
 	tb->mcu_data_start = 1;
       }
-      else if(drive_idx == 1) tb->mcu_data_in = drive;
-      else if(drive_idx == 2) tb->mcu_data_in = file_image_len[drive] >> 24;
-      else if(drive_idx == 3) tb->mcu_data_in = file_image_len[drive] >> 16;
-      else if(drive_idx == 4) tb->mcu_data_in = file_image_len[drive] >> 8;
-      else if(drive_idx == 5) tb->mcu_data_in = file_image_len[drive] >> 0;
+      else if(drive_idx == 1) tb->mcu_data_out = drive;
+      else if(drive_idx == 2) tb->mcu_data_out = file_image_len[drive] >> 24;
+      else if(drive_idx == 3) tb->mcu_data_out = file_image_len[drive] >> 16;
+      else if(drive_idx == 4) tb->mcu_data_out = file_image_len[drive] >> 8;
+      else if(drive_idx == 5) tb->mcu_data_out = file_image_len[drive] >> 0;
       
 #ifdef ENABLE_DIRECT_MAP
       else if(drive_idx == 6)
 	tb->mcu_data_strobe = 0;
       else if(drive_idx == 7) {
-	tb->mcu_data_in = 6;         // direct enable signal
+	tb->mcu_data_out = 6;         // direct enable signal
 	tb->mcu_data_start = 1;
       } else if(drive_idx == 8)
-	tb->mcu_data_in = drive;
+	tb->mcu_data_out = drive;
       else if(drive_idx == 9)
-	tb->mcu_data_in = 1<<drive;  // drive maps to sectors
+	tb->mcu_data_out = 1<<drive;  // drive maps to sectors
       else if(drive_idx <= 12)
-	tb->mcu_data_in = 0;
+	tb->mcu_data_out = 0;
 #endif
     
       else tb->mcu_data_strobe = 0;	  
@@ -386,33 +386,33 @@ static int mcu_sdc_insert_handler(int index) {
       static int buffer_size;
 
       if(!drive_idx) {
-	tb->mcu_data_in = 8;     // image command
+	tb->mcu_data_out = 8;     // image command
 	tb->mcu_data_start = 1;
       }
-      else if(drive_idx == 1) tb->mcu_data_in = 1;      // image select subcommand
-      else if(drive_idx == 2) tb->mcu_data_in = image;  
-      else if(drive_idx == 3) tb->mcu_data_in = rom_image_len[image] >> 24;
-      else if(drive_idx == 4) tb->mcu_data_in = rom_image_len[image] >> 16;
-      else if(drive_idx == 5) tb->mcu_data_in = rom_image_len[image] >> 8;
-      else if(drive_idx == 6) tb->mcu_data_in = rom_image_len[image] >> 0;
+      else if(drive_idx == 1) tb->mcu_data_out = 1;      // image select subcommand
+      else if(drive_idx == 2) tb->mcu_data_out = image;  
+      else if(drive_idx == 3) tb->mcu_data_out = rom_image_len[image] >> 24;
+      else if(drive_idx == 4) tb->mcu_data_out = rom_image_len[image] >> 16;
+      else if(drive_idx == 5) tb->mcu_data_out = rom_image_len[image] >> 8;
+      else if(drive_idx == 6) tb->mcu_data_out = rom_image_len[image] >> 0;
 
       // request status
       else if(drive_idx == 7)
 	tb->mcu_data_strobe = 0;
       else if(drive_idx == 8) {
-	tb->mcu_data_in = 8;         // image command
+	tb->mcu_data_out = 8;         // image command
 	tb->mcu_data_start = 1;
       } else if(drive_idx == 9)
-	tb->mcu_data_in = 0;         // image status subcommand
+	tb->mcu_data_out = 0;         // image status subcommand
       else if(drive_idx == 10)
-	tb->mcu_data_in = 0;
+	tb->mcu_data_out = 0;
       else if(drive_idx == 11)
-	printf("%s%.3fms image status: %02x -> %s" END "\n", (tb->mcu_data_out&0x80)?GREEN:RED, simulation_time*1000, tb->mcu_data_out,
-	       (tb->mcu_data_out&0x80)?"OK":"NOT ACCEPTED");
+	printf("%s%.3fms image status: %02x -> %s" END "\n", (tb->mcu_data_in&0x80)?GREEN:RED, simulation_time*1000, tb->mcu_data_in,
+	       (tb->mcu_data_in&0x80)?"OK":"NOT ACCEPTED");
       else if(drive_idx == 12)
-	buffer_size = tb->mcu_data_out;
+	buffer_size = tb->mcu_data_in;
       else if(drive_idx == 13)
-	printf("%.3fms image buffer size: %d\n", simulation_time*1000, 256 * buffer_size + tb->mcu_data_out);
+	printf("%.3fms image buffer size: %d\n", simulation_time*1000, 256 * buffer_size + tb->mcu_data_in);
 
       else tb->mcu_data_strobe = 0;	  
       
@@ -449,7 +449,7 @@ void fc_handle(void) {
     if(handler && companion_cnt >= companion_next) {
       // printf("EV %d %d\n", companion_cnt, companion_next);
       
-      tb->mcu_data_in = 0;
+      tb->mcu_data_out = 0;
       tb->mcu_data_strobe = 1;
       tb->mcu_data_start = 0;
       
@@ -985,7 +985,7 @@ void sd_init(void) {
   // mcu is idle
   tb->mcu_data_strobe = 0;
   tb->mcu_data_start = 0;
-  tb->mcu_data_in = 0;
+  tb->mcu_data_out = 0;
   tb->mcu_iack = 0;
 #else
   sd_mount(simulation_time*1000);

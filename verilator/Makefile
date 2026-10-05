@@ -1,7 +1,7 @@
 N=snestang_top
 D=../src
 
-COMPANION=1
+MISTLE=1
 
 GHDL ?= ghdl
 GHDL_FLAGS = --std=08 --latches --out=verilog -fsynopsys
@@ -49,15 +49,15 @@ endif
 SRCS += sim_main.cpp
 DEPS = Makefile
 
-ifndef COMPANION
+ifndef MISTLE
 # simple test loader with hex cart hard coded
 SRCS += $D/verilator/test_loader.v
 else
 # mistle companion variant using simulated sd card to load rom
 SRCS += $D/mistle/companion.v $D/mistle/sd_card.v $D/mistle/sd_rw.v $D/mistle/sdcmd_ctrl.v
 VERILATOR_FLAGS += --pins-inout-enables
-VERILATOR_FLAGS += -DENABLE_COMPANION -DINFER_DPRAM
-EXTRA_CFLAGS = -DENABLE_COMPANION
+VERILATOR_FLAGS += -DMISTLE -DINFER_DPRAM
+EXTRA_CFLAGS = -DMISTLE
 SRCS += sd_card.cpp
 DEPS += sd_card_config.h
 endif

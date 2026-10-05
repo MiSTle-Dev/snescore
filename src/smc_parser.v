@@ -13,7 +13,7 @@ module smc_parser(
     output reg [3:0]  ram_size,
 
     output reg	      header_finished
-`ifdef ENABLE_COMPANION		  
+`ifdef MISTLE		  
     , output reg      header_ok
 `endif
 );
@@ -35,13 +35,13 @@ always @(posedge clk) begin
     if (~resetn) begin
         cnt <= 0;
         header_finished <= 0;
-`ifdef ENABLE_COMPANION		  
+`ifdef MISTLE		  
         header_ok <= 1'b1;
 `endif
     end else if (rom_strb && ~header_finished) begin
         cnt <= cnt + 1;
 
-`ifdef ENABLE_COMPANION
+`ifdef MISTLE
        if(cnt == 0)
 	 header_ok <= 1'b1;
        
@@ -69,7 +69,7 @@ always @(posedge clk) begin
 	     rom_size <= rom_d[3:0];
              $display("smc_parser.v: rom size=%0d", 1024<<rom_d[3:0]);
 
-`ifdef ENABLE_COMPANION
+`ifdef MISTLE
 	     // max rom size = 1024 * 2^15 = 32MB
 	     // actually biggest commercial cartridge is 6MB
 	     if(rom_d[7:4]) header_ok <= 1'b0;	     
@@ -80,7 +80,7 @@ always @(posedge clk) begin
 	     ram_size <= rom_d[3:0];
              $display("smc_parser.v: ram size=%0d", 1024<<rom_d[3:0]);
 
-`ifdef ENABLE_COMPANION
+`ifdef MISTLE
 	     // max ram size is 128k
 	     if(rom_d[7:3]) header_ok <= 1'b0;	     
 `endif
@@ -88,7 +88,7 @@ always @(posedge clk) begin
 	     
           6'h19: begin
              $display("smc_parser.v: country=%0d", rom_d);
-`ifdef ENABLE_COMPANION
+`ifdef MISTLE
 	     // max country code is $14
 	     if(rom_d > 8'h14) header_ok <= 1'b0;	     
 `endif
@@ -100,7 +100,7 @@ always @(posedge clk) begin
 	  end
 	  
           6'h3F:
-`ifdef ENABLE_COMPANION
+`ifdef MISTLE
 	    // the companion may try different headers. So reset the parser if
 	    // a header wasn't valid. Also don't signal "finished" on failure	    
 	    if(!header_ok) begin

@@ -58,15 +58,15 @@ module snestang_top #(
 `endif
 
     // MicroSD
-`ifdef ENABLE_COMPANION
+`ifdef MISTLE
     output			    sdclk,
     inout			    sdcmd,
     inout [3:0]			    sddat, 
 
     input			    mcu_data_strobe,
     input			    mcu_data_start,
-    input [7:0]			    mcu_data_in,
-    output [7:0]		    mcu_data_out,
+    output [7:0]		    mcu_data_in,
+    input [7:0]			    mcu_data_out,
     output			    mcu_irq,
     input			    mcu_iack,  
 `else
@@ -429,7 +429,7 @@ wire [7:0] loader_do;
 wire loader_do_valid, loader_do_ready;
 wire loading, header_finished;
 
-`ifdef ENABLE_COMPANION
+`ifdef MISTLE
 wire header_ok;
 `endif
    
@@ -878,7 +878,7 @@ smc_parser smc (
     .rom_d(loader_do), .rom_strb(loader_do_valid),
     .rom_type(rom_type), .rom_mask(rom_mask), .ram_mask(ram_mask),
     .rom_size(rom_size), .ram_size(ram_size),
-`ifdef ENABLE_COMPANION		  
+`ifdef MISTLE		  
     .header_ok(header_ok),
 `endif
     .header_finished(header_finished)
@@ -1235,7 +1235,7 @@ end
 
 `else       // VERILATOR
 
-`ifdef ENABLE_COMPANION
+`ifdef MISTLE
 companion companion 
    (
     .clk(mclk), .resetn(resetn),

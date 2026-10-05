@@ -19,8 +19,8 @@ module companion (
     // is no spi bus
     input	 mcu_data_strobe,
     input	 mcu_data_start,
-    input [7:0]	 mcu_data_in,
-    output [7:0] mcu_data_out,
+    output [7:0] mcu_data_in,      // data to MCU
+    input [7:0]  mcu_data_out,     // data from MCU
     output	 mcu_irq,
     input	 mcu_iack,
 		  
@@ -179,8 +179,8 @@ sd_card #(
     // mcu interface
     .data_strobe(mcu_data_strobe),
     .data_start(mcu_data_start),
-    .data_in(mcu_data_in),
-    .data_out(mcu_data_out),
+    .data_in(mcu_data_out),
+    .data_out(mcu_data_in),
 
     .image_mounted(image_mounted),
     .image_size(image_size),           // length of image file
