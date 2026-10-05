@@ -29,6 +29,13 @@
 `endif
 `endif
 
+`ifdef CHIP_GSU
+`ifndef BSRAM_BRAM
+`ifndef BSRAM_CACHE
+`error "GSU requires either BSRAM in BRAM on BSRAM cache"
+`endif
+`endif
+
 module snestang_top #(
     parameter SNES_FREQ = `SNES_FREQ,
     parameter PIXEL_FREQ = `PIXEL_FREQ,
