@@ -12,8 +12,6 @@ create_generated_clock -name hclk -source [get_nets {hclk5}] -master_clock hclk5
 
 create_clock -name clk_audio -period 20833 -waveform {0 10416} [get_nets {s2h/clk_audio}]
 
-create_clock -name mcu_clk -period 50 -waveform {0 25} [get_ports {mcu_clk}] -add
-
 // see start of sdram_snes.v for detailed timing of sdram
 // SNES to sdram, 3*fclk
 set_multicycle_path 3 -setup -end -from [get_clocks {mclk}] -to [get_clocks {fclk}]

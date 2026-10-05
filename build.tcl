@@ -55,6 +55,7 @@ if {$dev eq "nano20k"} {
     add_file -type verilog "src/bsram_cache.v"
     set_option -output_base_name snestang_${dev}_${controller}
 } elseif {$dev eq "mistle_gw5a_25"} {
+    set controller "mistle"
     set_device GW5A-LV25LQ144C1/I0 -device_version A
     add_file "src/mistle_gw5a_25/config.vh"
     add_file -type vhdl "src/mistle_gw5a_25/config.vhd"
@@ -263,10 +264,15 @@ add_file -type vhdl "src/chip/SRTC.vhd"
 add_file -type vhdl "src/chip/GSU/GSUMap.vhd"
 add_file -type vhdl "src/chip/GSU/GSU_PKG.vhd"
 add_file -type vhdl "src/chip/GSU/GSU.vhd"
-
 add_file -type vhdl "src/SWRAM.vhd"
 add_file -type verilog "src/uart_tx_V2.v"
-add_file -type sdc "src/snestang.sdc"
+
+if {$controller eq "mistle"} {
+    add_file -type sdc "src/snestang_mistle.sdc"
+} else {
+    add_file -type sdc "src/snestang.sdc"
+}
+
 add_file -type gao -disable "src/mega138k/snestang.gao"
 
 set_option -synthesis_tool gowinsynthesis

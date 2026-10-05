@@ -1058,7 +1058,7 @@ generate for (usb_port = 0; usb_port < 2; usb_port = usb_port + 1) begin : usb_h
     assign usb_pull_dn = 2'b00;
 
     usb_hid_host #(
-        .FULL_SPEED(1), .KEYBOARD_SUPPORT(0), .MOUSE_SUPPORT(0), .GAME_SUPPORT(1)
+        .FULL_SPEED(1), .KEYBOARD_SUPPORT(0), .MOUSE_SUPPORT(0), .GAME_SUPPORT(1), .XINPUT_SWAP_AB_XY(1)
     ) usb_host (
         .clk(uclk), .reset(~uclk_resetn), .cs(1'b1),
         .usb_dp_i(usb_dp[usb_port]), .usb_dm_i(usb_dn[usb_port]),
