@@ -10,8 +10,6 @@ package board_config is
 
     constant VENDOR : vendor_t := VENDOR_GOWIN;
 
-    constant MCU_SERV : boolean := true;
-
     constant SDRAM_3CH : boolean := true;
     constant BSRAM_BRAM : boolean := false;
     constant CHIP_DSPn : boolean := true;
@@ -19,7 +17,7 @@ package board_config is
 
     constant CONTROLLER_SNES   : boolean := false;
     constant CONTROLLER_DS2    : boolean := false;
-    constant CONTROLLER_MISTLE : boolean := true;
+    constant MISTLE            : boolean := true;
 
     constant SDRAM_DATA_WIDTH : integer := 16;
     constant SDRAM_ROW_WIDTH  : integer := 13;

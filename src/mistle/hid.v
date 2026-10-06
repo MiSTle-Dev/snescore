@@ -13,6 +13,7 @@ module hid (
     input      [7:0] data_in,
     output reg [7:0] data_out,
 
+    input             buttons_order,
     output reg [11:0] joystick0,
     output reg [11:0] joystick1
 );
@@ -56,15 +57,22 @@ module hid (
           if (command == 8'd3) begin
             if (state == 4'd0) device <= data_in;
             if (state == 4'd1) begin
-              if (device == 8'd0) begin
+              if (device == 8'd0) begin	 		 
                 joystick0[7] <= data_in[0];
                 joystick0[6] <= data_in[1];
                 joystick0[5] <= data_in[2];
                 joystick0[4] <= data_in[3];
-                joystick0[8] <= data_in[4];
-                joystick0[0] <= data_in[5];
-                joystick0[9] <= data_in[6];
-                joystick0[1] <= data_in[7];
+		if(buttons_order) begin
+                  joystick0[0] <= data_in[4];
+                  joystick0[8] <= data_in[5];
+                  joystick0[1] <= data_in[6];
+                  joystick0[9] <= data_in[7];
+		end else begin		   
+                  joystick0[8] <= data_in[4];
+                  joystick0[0] <= data_in[5];
+                  joystick0[9] <= data_in[6];
+                  joystick0[1] <= data_in[7];
+		end
               end
               if (device == 8'd1) begin
                 joystick1[7] <= data_in[0];

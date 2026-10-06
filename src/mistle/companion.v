@@ -69,8 +69,11 @@ wire        mcu_clk_i   = ( mcu_clk_i && mcu_clk_i_d != 16'h0000) ||
 wire mcu_clk_i = mcu_clk;
 `endif
 
-wire mcu_data_strobe;   
-wire	mcu_data_start;   
+// 0=xy/ab, 1=yx/ba
+wire       system_buttons_order;   
+
+wire       mcu_data_strobe;   
+wire	   mcu_data_start;   
 wire [7:0] mcu_data_in;   
 wire [7:0] mcu_data_out;   
 
@@ -111,10 +114,7 @@ mcu_spi mcu (
   .mcu_sdc_din(sdc_data_out)
 );
 
-// decode SPI/MCU data received for human input devices (HID) and
-// convert into Amiga compatible mouse and keyboard signals
-wire [7:0] int_ack;
-   
+wire [7:0] int_ack;   
 `ifndef VERILATOR
 // these are provided externally in simulation
 wire sdc_iack = int_ack[3];
@@ -130,6 +130,7 @@ hid hid (
   .data_in(mcu_data_out),
   .data_out(hid_data_out),
 
+  .buttons_order(system_buttons_order),
   .joystick0(joy1_btns),
   .joystick1(joy2_btns)
 );
@@ -150,6 +151,7 @@ sysctrl sysctrl (
 
         // values controlled by the OSD
         .system_reset(system_reset),
+	.system_buttons_order(system_buttons_order),
 
         .int_out_n(mcu_intn),
         .int_in( { 4'b0000, sdc_int, 3'b000 }),
@@ -160,7 +162,6 @@ sysctrl sysctrl (
         .color()
 );
    
-
 osd_u8g2 osd_u8g2 (
         .clk(clk),
         .reset(!resetn),

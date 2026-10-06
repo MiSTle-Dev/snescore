@@ -40,6 +40,10 @@
   <menu label="SNES">
     <fileselector label="Cartridge" ext="sfc;smc" index="0" action="hide"/>
     <menu label="Settings">
+      <list label="Buttons:" id="S" default="1">
+        <listentry label="XY/AB" value="0"/>
+        <listentry label="YX/BA" value="1"/>
+      </list>      
       <button label="Save settings" action="save"/>
     </menu>
     <button label="Reset" action="reset_hide"/>

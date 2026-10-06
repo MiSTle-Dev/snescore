@@ -22,6 +22,7 @@ module sysctrl (
   output reg [7:0]  int_ack,
 
   output	    system_reset,
+  output reg	    system_buttons_order,
 		
   input [1:0]	    buttons, // S0 and S1 buttons on Tang Nano 20k
 
@@ -75,6 +76,8 @@ always @(posedge clk) begin
       // stay in reset for about 3 seconds or until MCU releases reset
       main_reset <= 1'b1;
       main_reset_timeout <= 3 * 32'd28_000_000;
+
+      system_buttons_order <= 1'b1;   // default YX/BA
 
       buttons_irq_enable <= 1'b1;  // allow buttons irq
       int_ack <= 8'h00;
@@ -164,8 +167,7 @@ always @(posedge clk) begin
 		      // cancel out-timeout if MCU is active
 		      main_reset_timeout <= 32'd0;
 		   end
-
-		   // TODO: Add SNES values
+                   if(id == "S") system_buttons_order <= data_in[0];
                 end
             end
 
@@ -187,8 +189,6 @@ always @(posedge clk) begin
                 // reading the interrupt source acknowledges the coldboot notification
                 if(state == 4'd0) coldboot <= 1'b0;
             end
-
-	    // CMD 7: port in/out, currently unused in amiga
 
             // CMD 8: read (menu) config
             if(command == 8'd8) begin
