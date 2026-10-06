@@ -2,6 +2,13 @@
 // SNEStang specific interface to the MiSTle companion
 //
 
+//
+// TODO:
+// - zsnes keyboard map (https://defkey.com/snes9x-1-60-shortcuts)
+//
+//
+
+
 module companion (
     input	  clk,
     input	  resetn,
@@ -70,9 +77,7 @@ wire [7:0] mcu_data_out;
 wire       mcu_sys_strobe;        // mcu message byte valid for sysctrl
 wire       mcu_hid_strobe;        // -"- hid
 wire       mcu_osd_strobe;        // -"- osd
-wire	   mcu_data_start;
 
-wire [7:0] mcu_data_out;
 wire [7:0] sys_data_out;  
 wire [7:0] hid_data_out;  
 wire [7:0] osd_data_out = 8'h55;  // OSD actually has no data output
@@ -109,8 +114,6 @@ mcu_spi mcu (
 // decode SPI/MCU data received for human input devices (HID) and
 // convert into Amiga compatible mouse and keyboard signals
 wire [7:0] int_ack;
-wire hid_int;
-wire hid_iack = int_ack[1];
    
 `ifndef VERILATOR
 // these are provided externally in simulation
@@ -127,21 +130,14 @@ hid hid (
   .data_in(mcu_data_out),
   .data_out(hid_data_out),
 
-  .db9_port(6'b000000),
-  .irq( hid_int ),
-  .iack( hid_iack ),
-
-  .mouse_buttons(),
-
-  .kbd_mouse_level(),
-  .kbd_mouse_type(),
-  .kbd_mouse_data(),
-  .kbd_reset(),
-
   .joystick0(joy1_btns),
   .joystick1(joy2_btns)
 );
 
+
+// the osd can be opened via select+start
+wire osd_combo = joy1_btns == 12'b0000_0000_1100;   
+     
 sysctrl sysctrl (
         .clk(clk),
         .reset(!resetn),
@@ -156,10 +152,10 @@ sysctrl sysctrl (
         .system_reset(system_reset),
 
         .int_out_n(mcu_intn),
-        .int_in( { 4'b0000, sdc_int, 1'b0, hid_int, 1'b0 }),
+        .int_in( { 4'b0000, sdc_int, 3'b000 }),
         .int_ack( int_ack ),
 
-        .buttons( buttons ),
+        .buttons( { buttons[1] || osd_combo, buttons[0] } ),
         .leds(),
         .color()
 );

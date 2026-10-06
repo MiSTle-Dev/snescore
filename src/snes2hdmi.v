@@ -130,7 +130,7 @@ module snes2hdmi #(
     always_ff @(posedge clk_pixel) begin
         mem_portB_rdata <= mem[mem_portB_addr];
     end
-
+`ifdef GRADIENT
     integer j;
     initial begin
         // On power-up, fill line buffer with a gradient
@@ -140,7 +140,7 @@ module snes2hdmi #(
             mem[j][ 4: 0] = j[4:0];
         end
     end
-
+`endif
     //
     // Data input
     //
