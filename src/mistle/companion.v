@@ -281,7 +281,7 @@ always @(posedge clk) begin
 	    
 	    if((image_size & 24'hfe0000) && 
 	       !(image_size & 24'h1fdff) &&
-	       ((image_size & 24'hfe0000) < 24'd4194304)) begin
+	       ((image_size & 24'hfe0000) <= 24'd4194304)) begin
 
 	       if(image_size[9]) begin	       
 		  // some files have a 512 byte header of which the first
