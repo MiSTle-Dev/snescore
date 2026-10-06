@@ -466,6 +466,7 @@ wire pause_snes_for_frame_sync;
 
 wire [7:0] loader_do;
 wire loader_do_valid, loader_do_ready;
+wire loader_byte_accepted /* synthesis syn_keep=1 */;
 wire loading, header_finished;
 
 `ifdef MISTLE
@@ -975,14 +976,15 @@ sdram_snes sdram(
 );
 
 assign loader_do_ready = (rom_req == rom_req_ack);
+assign loader_byte_accepted = loader_do_valid && loader_do_ready;
 
 reg [7:0] loader_do_r;
-reg loading_r;
+reg       loading_r;
 
 // Decode the 64-byte cartridge header into mapper, ROM/RAM sizes, and address masks.
 smc_parser smc (
     .clk(mclk), .resetn(resetn & ~(loading & ~loading_r)),
-    .rom_d(loader_do), .rom_strb(loader_do_valid),
+    .rom_d(loader_do), .rom_strb(loader_byte_accepted),
     .rom_type(smc_rom_type),
     .rom_mask(smc_rom_mask), .rom_size(smc_rom_size),
     .ram_mask(smc_ram_mask), .ram_size(smc_ram_size),
@@ -1000,7 +1002,7 @@ always @(posedge mclk, negedge resetn) begin
 
     end else begin
         loading_r <= loading;
-        if (loader_do_valid && loader_do_ready && header_finished) begin
+        if (loader_byte_accepted && header_finished) begin
             loader_addr <= loader_addr + 23'd1;
             loader_do_r <= loader_do;
         end
