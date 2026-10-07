@@ -1,4 +1,7 @@
 *
+!build.sh
+!build.tcl
+!diamondc.grc
 !*.sdc
 !*.lpf
 !*.ldf
