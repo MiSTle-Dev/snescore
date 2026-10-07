@@ -61,9 +61,15 @@ architecture rtl of DSPn is
 		end if;
 	end function;
 
+        -- To save bram, the DSP ROM can be limited to DSP1 only. The DSP2
+        -- and up will stop working properly in that case, but the majority
+        -- of DSP supported games are DSP1 incl. Mario Kart
 	constant PROG_ROM_FILE: string := rom_file_path(VENDOR) & "dsp11b23410_p.hex";
-	constant DATA_ROM_FILE: string := rom_file_path(VENDOR) & "dsp11b23410_d.hex";
+	constant PROG_ROM_SIZE: integer := 2533 when DSP1_ROM_LIMIT else 8096;
 
+	constant DATA_ROM_FILE: string := rom_file_path(VENDOR) & "dsp11b23410_d.hex";
+	constant DATA_ROM_SIZE: integer := 2048 when DSP1_ROM_LIMIT else 7168;
+              
 	-- IO Registers
 	signal DR	: std_logic_vector(15 downto 0);
 	signal SR	: std_logic_vector(15 downto 0);
@@ -502,7 +508,7 @@ begin
 	                 std_logic_vector(unsigned(PC) + ("1"&x"6BD")) when VER="011" else
 	                 std_logic_vector(unsigned(PC) + ("1"&x"D8B"));
 
-	PROG_ROM : entity work.spram_sz generic map(13, 24, 8096, PROG_ROM_FILE)
+        PROG_ROM : entity work.spram_sz generic map(13, 24, PROG_ROM_SIZE, PROG_ROM_FILE)
 	port map(
 		clock		=> CLK,
 		address	=> PROG_ROM_ADDR,
@@ -516,7 +522,7 @@ begin
 	                 std_logic_vector(unsigned(RP( 9 downto 0)) + ("1"&x"000")) when VER="011" else
 	                 std_logic_vector(unsigned(RP(10 downto 0)) + ("1"&x"400"));
 
-	DATA_ROM : entity work.spram_sz generic map(13, 16, 7168, DATA_ROM_FILE)
+	DATA_ROM : entity work.spram_sz generic map(13, 16, DATA_ROM_SIZE, DATA_ROM_FILE)
 	port map(
 		clock		=> CLK,
 		address	=> DATA_ROM_ADDR,

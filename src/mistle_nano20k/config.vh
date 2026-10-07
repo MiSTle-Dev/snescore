@@ -4,7 +4,7 @@
 
 `define SDRAM_3CH
 // `define BSRAM_BRAM
-// `define CHIP_DSPn
+`define CHIP_DSPn
 // `define CHIP_GSU
 
 // enable the individual controller interfaces

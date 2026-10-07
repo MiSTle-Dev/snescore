@@ -7,6 +7,7 @@ package board_config is
     constant BSRAM_BRAM : boolean := true;
     constant CHIP_GSU : boolean := true;
     constant SNES_FREQ : integer := 21_484_400;
+    constant DSP1_ROM_LIMIT : boolean := false;
 end package board_config;
 
 package body board_config is
