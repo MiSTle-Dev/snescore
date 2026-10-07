@@ -12,22 +12,22 @@ package board_config is
 
     constant SDRAM_3CH : boolean := true;
     constant BSRAM_BRAM : boolean := false;
-    constant CHIP_DSPn : boolean := true;
+    constant CHIP_DSPn : boolean := false;
     constant CHIP_GSU  : boolean := false;
 
     constant CONTROLLER_SNES   : boolean := false;
     constant CONTROLLER_DS2    : boolean := false;
     constant MISTLE            : boolean := true;
 
-    constant SDRAM_DATA_WIDTH : integer := 16;
-    constant SDRAM_ROW_WIDTH  : integer := 13;
-    constant SDRAM_16M        : boolean := true;
+    constant SDRAM_DATA_WIDTH : integer := 32;
+    constant SDRAM_ROW_WIDTH  : integer := 11;
+    constant SDRAM_16M        : boolean := false;
 
     constant SNES_FREQ  : integer := 21_484_400;
     constant PIXEL_FREQ : integer := 74_250_000;
 
     constant S0_N : boolean := false;
-    constant S1_N : boolean := true;
+    constant S1_N : boolean := false;
     constant LED_N : boolean := true;
 
 end package board_config;

@@ -80,7 +80,11 @@ module snestang_top #(
     output			    mcu_intn,
     input			    mcu_spare,
 
+`ifdef S1_N
+    input                           s1_n,
+`else
     input                           s1,
+`endif
 `endif
 
 `else
@@ -187,6 +191,12 @@ wire pause;
 
 `ifdef S0_N
 wire s0 = ~s0_n;
+`endif
+
+`ifdef MISTLE
+`ifdef S1_N
+wire s1 = ~s1_n;
+`endif
 `endif
 
 wire pll_snes_lock, pll_hdmi_lock;
@@ -1031,7 +1041,7 @@ companion companion
     .osd_x(overlay_x),
     .osd_y(overlay_y),
 
-    .buttons({!s1,s0}),
+    .buttons({s1,s0}),
     
     // values set via OSD/config file
     .system_reset(osd_reset),

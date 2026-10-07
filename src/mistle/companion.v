@@ -184,7 +184,7 @@ osd_u8g2 osd_u8g2 (
 reg [1:0] state;
    
 wire [23:0] image_size;     // cartridge image size   
-wire [7:0] image_mounted;   // up to eight images supported
+wire image_mounted;
 
 
 // IO requests to sd card
@@ -270,44 +270,41 @@ always @(posedge clk) begin
 	 end
       end // if (sd_done)
       
-      // state == 0: fresh out of global reset or cartridge running
-      if(state == 2'd0) begin
-      
-	 // wait for image to be mounted which means a cartridge
-	 // is inserted
-	 if(image_mounted[0]) begin
-	    // check for a valid image length which is a multiple of
-	    // 128 and may have an addional 512 byte header
-	    // we can load images up to 4MB
+      // wait for image to be mounted which means a cartridge
+      // is inserted
+      if(image_mounted) begin
+	 // check for a valid image length which is a multiple of
+	 // 128 and may have an addional 512 byte header
+	 // we can load images up to 4MB
+
+// TODO: save some LUTs by removing these tests	 
+//	 if((image_size & 24'hfe0000) && 
+//	    !(image_size & 24'h1fdff) &&
+//	    ((image_size & 24'hfe0000) <= 24'd4194304)) begin
 	    
-	    if((image_size & 24'hfe0000) && 
-	       !(image_size & 24'h1fdff) &&
-	       ((image_size & 24'hfe0000) <= 24'd4194304)) begin
-
-	       if(image_size[9]) begin	       
-		  // some files have a 512 byte header of which the first
-		  // 64 bytes are of interest
-		  state <= 2'd1;
-		  rom_data_sectors <= image_size[23:9] - 15'd1;
-		  sd_sector <= 32'd0;
-	       end else begin
-		  // some don't have an extra header. Then the header data is
-		  // at byte offset $7fc0 or $ffc0 which is the last 64
-		  // bytes of sector 63 or 127
-		  state <= 2'd2;
-		  rom_data_sectors <= image_size[23:9];
-		  sd_sector <= 32'd127;
-	       end
-
-	       // start download
-	       sd_rd <= 1'b1;      
-	       loading <= 1'b1;	       
-	       
+	    if(image_size[9]) begin	       
+	       // some files have a 512 byte header of which the first
+	       // 64 bytes are of interest
+	       state <= 2'd1;
+	       rom_data_sectors <= image_size[23:9] - 15'd1;
+	       sd_sector <= 32'd0;
 	    end else begin
-	       $display("companion.v: Unsupported image size: %0d", image_size & 24'hfe0000 );
-	       // TODO: show some visible sign of this failure ...
-	    end // else: !if((image_size & 24'hfe0000) &&...
-	 end
+	       // some don't have an extra header. Then the header data is
+	       // at byte offset $7fc0 or $ffc0 which is the last 64
+	       // bytes of sector 63 or 127
+	       state <= 2'd2;
+	       rom_data_sectors <= image_size[23:9];
+	       sd_sector <= 32'd127;
+	    end
+	    
+	    // start download
+	    sd_rd <= 1'b1;      
+	    loading <= 1'b1;	       
+	    
+//	 end else begin
+//	    $display("companion.v: Unsupported image size: %0d", image_size & 24'hfe0000 );
+//	    // TODO: show some visible sign of this failure ...
+//	 end // else: !if((image_size & 24'hfe0000) &&...
       end
    end // else: !if(!resetn)
 end // always @ (posedge clk)   
@@ -339,8 +336,8 @@ sd_card #(
     .image_size(image_size),           // length of image file
 
     // user read sector command interface (sync with clk32)
-    .rstart({7'b0000000, sd_rd} ), 
-    .wstart(8'b00000000), 
+    .rstart(sd_rd), 
+    .wstart(1'b0), 
     .rsector(sd_sector),
     .rbusy(sd_busy),
     .rdone(sd_done),

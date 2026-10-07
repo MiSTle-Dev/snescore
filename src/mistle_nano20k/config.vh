@@ -1,10 +1,10 @@
 // `define LATTICE
 `define GOWIN
-`define PRIMER
+`define NANO
 
 `define SDRAM_3CH
 // `define BSRAM_BRAM
-`define CHIP_DSPn
+// `define CHIP_DSPn
 // `define CHIP_GSU
 
 // enable the individual controller interfaces
@@ -15,13 +15,13 @@
 // enable the mistle framework (incl. its controller ports)
 `define MISTLE
 
-`define SDRAM_DATA_WIDTH 16
-`define SDRAM_ROW_WIDTH 13
-`define SDRAM_16M
+`define SDRAM_DATA_WIDTH 32
+`define SDRAM_ROW_WIDTH 11
+// `define SDRAM_16M
 
 `define SNES_FREQ 21_484_400
 `define PIXEL_FREQ 74_250_000
 
-//`define S0_N
-`define S1_N
+// `define S0_N
+// `define S1_N
 `define LED_N

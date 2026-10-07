@@ -32,25 +32,23 @@ module sd_card # (
    
     // export sd image size   
     output reg [23:0] image_size,
-    // up to eight drive images supported
-    output reg [7:0]  image_mounted,
+    output reg		  image_mounted,
 
     // read sector command interface (sync with clk), this once was
     // directly tied to the sd card. Now this goes to the MCU via the
     // MCU interface as the MCU translates sector numbers from those
     // the core tries to use to physical ones inside the file system
     // of the sd card
-    input [7:0]		  rstart, // up to eight different sources can request data 
-    input [7:0]		  wstart, 
+	input			  rstart,
+    input			  wstart, 
     input [31:0]	  rsector,
-	output reg [2:0]  rsrc, // source currently being process and for which 
-    output			  rbusy, //        busy and done are valid
+    output			  rbusy,   //        busy and done are valid
     output			  rdone,
 
     // sector data output interface (sync with clk)
     input [7:0]		  inbyte,
 
-	output			  outen, // when outen=1, a byte of sector content
+	output			  outen,   // when outen=1, a byte of sector content
                                // is read out from outbyte
 	output [8:0]	  outaddr, // outaddr from 0 to 511, because the
                                // sector size is 512
@@ -63,8 +61,6 @@ wire [1:0] card_type;  // 0=UNKNOWN    , 1=SDv1    , 2=SDv2  , 3=SDHCv2
 reg [7:0] command;
 reg [7:0] sub_command;
 reg [3:0] byte_cnt;  
-
-reg [7:0] image_target; 
 
 reg	  rstart_int;   
 reg	  wstart_int;   
@@ -115,20 +111,7 @@ assign outen = (core_request == CORE_READING)?louten:1'b0;
 wire [7:0] inbyte_int;  
 
 // interrupt handling
-wire rstart_any = {|{rstart}};
-wire wstart_any = {|{wstart}};
-wire start_any = rstart_any || wstart_any;
-
-// drive index for the current request
-wire [2:0] drive =
-		   (rstart[0] || wstart[0])?3'd0:
-		   (rstart[1] || wstart[1])?3'd1:
-		   (rstart[2] || wstart[2])?3'd2:
-		   (rstart[3] || wstart[3])?3'd3:
-		   (rstart[4] || wstart[4])?3'd4:
-		   (rstart[5] || wstart[5])?3'd5:
-		   (rstart[6] || wstart[6])?3'd6:
-		   3'd7;   
+wire start = rstart || wstart;
 
 // The MCU may allow for direct SD card access if the image is
 // continous (not fragmeneted) on card. In that case only the
@@ -143,14 +126,11 @@ wire [2:0] drive =
 // port (dual-port pseudo RAM) is enough -- no address muxing
 // between sources is needed. This shape lets ECP5 synthesis infer
 // LUTRAM instead of a bank of muxed flip-flops.
-reg [31:0] direct_start [8];
+reg [31:0] direct_start;
 
-wire  [2:0] direct_start_waddr = image_target[2:0];
 reg         direct_start_we;
 reg  [31:0] direct_start_wdata;
-
-wire  [2:0] direct_start_raddr = drive;
-wire [31:0] direct_start_rdata = direct_start[direct_start_raddr];
+wire [31:0] direct_start_rdata = direct_start;
 
 // Asynchronous read
 wire direct_enable = direct_start_rdata != 32'd0;
@@ -158,7 +138,7 @@ wire direct_enable = direct_start_rdata != 32'd0;
 // Synchronous write
 always @(posedge clk) begin
 	if(direct_start_we)
-		direct_start[direct_start_waddr] <= direct_start_wdata;
+		direct_start <= direct_start_wdata;
 end
    
 wire [7:0] doutb;
@@ -212,9 +192,9 @@ always @(posedge clk, negedge rstn) begin
       irq <= 1'b0;
       startD <= 1'b0;
    end else begin
-      startD <= start_any;
+      startD <= start;
 
-	  // Raising edge of start_any means that the core
+	  // Raising edge of start means that the core
 	  // is requesting a sector read or write. If the requesting
 	  // device is not enabled for direct io, then the MCU needs
 	  // to be triggered for sector translation.
@@ -223,8 +203,8 @@ always @(posedge clk, negedge rstn) begin
       if(iack)
         irq <= 1'b0;
 
-      // rising edge of start_any raises interrupt
-      if(start_any && !startD && !direct_enable)
+      // rising edge of start raises interrupt
+      if(start && !startD && !direct_enable)
         irq <= 1'b1;
    end   
 end
@@ -240,7 +220,7 @@ always @(posedge clk, negedge rstn) begin
       rstart_int <= 1'b0;
       wstart_int <= 1'b0;
       image_size <= 24'd0;
-      image_mounted <= 8'b00000000;
+      image_mounted <= 1'b0;
       direct_start_we <= 1'b0;
       dinb_we <=1'b0;
 	  
@@ -248,7 +228,7 @@ always @(posedge clk, negedge rstn) begin
 	  mcu_request <= MCU_REQ_IDLE;	  
 	  core_request <= CORE_REQ_IDLE;	  
    end else begin
-      image_mounted <= 8'b00000000;
+      image_mounted <= 1'b0;
       direct_start_we <= 1'b0;
 
 	  // handle MCU/core requests
@@ -260,10 +240,6 @@ always @(posedge clk, negedge rstn) begin
 
 			lsector <= core_sector; // latch sector to be read
 			wstart_int <= 1'b1;     // request sector to be written to sd card
-
-			// latch source currently being processed
-			rsrc <= wstart[0]?3'd0:wstart[1]?3'd1:wstart[2]?3'd2:wstart[3]?3'd3:
-					wstart[4]?3'd4:wstart[5]?3'd5:wstart[6]?3'd6:7'd7;			
 		 end 
 
 		 else if(core_request == CORE_REQ_READ) begin
@@ -272,10 +248,6 @@ always @(posedge clk, negedge rstn) begin
 
 			lsector <= core_sector; // latch sector to be read
 			rstart_int <= 1'b1;     // request sector to be read from sd card			
-
-			// latch source currently being processed
-			rsrc <= rstart[0]?3'd0:rstart[1]?3'd1:rstart[2]?3'd2:rstart[3]?3'd3:
-					rstart[4]?3'd4:rstart[5]?3'd5:rstart[6]?3'd6:7'd7;			
 		 end
 
 		 else if(mcu_request == MCU_REQ_READ) begin
@@ -346,12 +318,12 @@ always @(posedge clk, negedge rstn) begin
 		 // don't wait for the MCU. Instead the sector to be read from SD card
 		 // is a direct offset of the requested sector relative from the
 		 // start of the image on card.
-		 if(start_any && direct_enable && core_request == CORE_REQ_IDLE) begin
-			$display("sd_card.v: Direct request for drive %0d, sector %0d", drive, rsector);
+		 if(start && direct_enable && core_request == CORE_REQ_IDLE) begin
+			$display("sd_card.v: Direct request sector %0d", rsector);
 			
 			core_sector <= direct_start_rdata + rsector;
-			if(rstart_any) core_request <= CORE_REQ_READ;
-			if(wstart_any) core_request <= CORE_REQ_WRITE;
+			if(rstart) core_request <= CORE_REQ_READ;
+			if(wstart) core_request <= CORE_REQ_WRITE;
 		 end
 	  end // if (!data_strobe)
 	  
@@ -396,8 +368,8 @@ always @(posedge clk, negedge rstn) begin
 				  $display("sd_card.v: Core request %0d/%0d sector %0d/%8x", rstart, wstart, {core_sector[31:8], data_in}, {core_sector[31:8], data_in});
 				  
 				  // distinguish between read and write
-				  if(rstart_any) core_request <= CORE_REQ_READ;	  
-				  if(wstart_any) core_request <= CORE_REQ_WRITE;
+				  if(rstart) core_request <= CORE_REQ_READ;	  
+				  if(wstart) core_request <= CORE_REQ_WRITE;
                end
 			end
 				 
@@ -439,16 +411,16 @@ always @(posedge clk, negedge rstn) begin
 			if(command == 8'd4) begin
 			   // MCU reports that some image has been inserted. If
 			   // the image size is 0, then no image is inserted
-			   if(byte_cnt == 4'd0) image_target <= data_in;
+			   // if(byte_cnt == 4'd0) image_target <= data_in;
 			   // byte_cnt == 4'd1: bits 31:24 are ignored
 			   if(byte_cnt == 4'd2) image_size[23:16] <= data_in;
 			   if(byte_cnt == 4'd3) image_size[15:8]  <= data_in;
 			   if(byte_cnt == 4'd4) begin 
 				  image_size[7:0] <= data_in;
-				  image_mounted[image_target] <= 1'b1;
+				  image_mounted <= 1'b1;
 				  direct_start_wdata <= 32'b0;
 				  direct_start_we <= 1'b1;
-				  $display("sd_card.v: MCU inserted image %0d with %0d bytes", image_target, { image_size[23:8], data_in } );
+				  $display("sd_card.v: MCU inserted image with %0d bytes", { image_size[23:8], data_in } );
 			   end
 			end
 			
@@ -481,14 +453,14 @@ always @(posedge clk, negedge rstn) begin
 			if(command == 8'd6) begin
 			   // MCU reports that the core may access the image
 			   // directy without sector translation
-			   if(byte_cnt == 4'd0) image_target <= data_in;
+			   // if(byte_cnt == 4'd0) image_target <= data_in;
 			   if(byte_cnt == 4'd1) direct_start_wdata[31:24] <= data_in;
 			   if(byte_cnt == 4'd2) direct_start_wdata[23:16] <= data_in;
 			   if(byte_cnt == 4'd3) direct_start_wdata[15: 8] <= data_in;
 			   if(byte_cnt == 4'd4) begin
 				   direct_start_wdata[ 7: 0] <= data_in;
 				   direct_start_we <= 1'b1;
-				   $display("sd_card.v: MCU direct start %0d with offset %0d(%8x)", image_target, { direct_start_wdata[31:8], data_in }, { direct_start_wdata[31:8], data_in });
+				   $display("sd_card.v: MCU direct start with offset %0d(%8x)", { direct_start_wdata[31:8], data_in }, { direct_start_wdata[31:8], data_in });
 			   end
 			end
 
