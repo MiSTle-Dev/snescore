@@ -22,10 +22,6 @@ module hid (
   reg [7:0] command;
   reg [7:0] device;  // used for joystick
 
-  reg irq_enable;
-  reg [5:0] db9_portD;
-  reg [5:0] db9_portD2;
-
   // process mouse events
   always @(posedge clk, posedge reset) begin
     if (reset) begin
@@ -79,10 +75,17 @@ module hid (
                 joystick1[6] <= data_in[1];
                 joystick1[5] <= data_in[2];
                 joystick1[4] <= data_in[3];
-                joystick1[8] <= data_in[4];
-                joystick1[0] <= data_in[5];
-                joystick1[9] <= data_in[6];
-                joystick1[1] <= data_in[7];
+		if(buttons_order) begin
+                  joystick1[0] <= data_in[4];
+                  joystick1[8] <= data_in[5];
+                  joystick1[1] <= data_in[6];
+                  joystick1[9] <= data_in[7];
+		end else begin		   
+                  joystick1[8] <= data_in[4];
+                  joystick1[0] <= data_in[5];
+                  joystick1[9] <= data_in[6];
+                  joystick1[1] <= data_in[7];
+		end
               end
             end
             if (state == 4'd4) begin

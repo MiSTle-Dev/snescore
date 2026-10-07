@@ -2,9 +2,6 @@
     sysctrl.v
 
     generic system control interface from/via the MCU
-
-    TODO: This is currently very core specific. This needs to be
-    generic for all cores.
 */
 
 module sysctrl (
@@ -21,12 +18,11 @@ module sysctrl (
   input [7:0]	    int_in,
   output reg [7:0]  int_ack,
 
-  output	    system_reset,
+  output 	    system_reset,
   output reg	    system_buttons_order,
 		
   input [1:0]	    buttons, // S0 and S1 buttons on Tang Nano 20k
 
-  output reg [1:0]  leds,    // two leds can be controlled from the MCU
   output reg [23:0] color    // a 24bit BRG color to e.g. be used to drive the ws2812
 );
 
@@ -53,11 +49,9 @@ assign int_out_n = (int_in != 8'h00 || sys_int)?1'b0:1'b1;
 reg main_reset = 1'b1;
 assign system_reset = main_reset;
 
-reg [31:0] main_reset_timeout;
-
 // include the menu rom derived from snes.xml
-reg [11:0] menu_rom_addr;
-reg  [7:0] menu_rom_data;
+reg [9:0] menu_rom_addr;
+reg [7:0] menu_rom_data;
 
 // gzip snes.xml
 // xxd -c1 -p snes.xml.gz > snes_xml.hex
@@ -70,13 +64,9 @@ always @(posedge clk)
 always @(posedge clk) begin
    if(reset) begin
       state <= 4'd0;
-      leds <= 2'b00;        // after reset leds are off
       color <= 24'h000000;  // color black -> rgb led off
 
-      // stay in reset for about 3 seconds or until MCU releases reset
       main_reset <= 1'b1;
-      main_reset_timeout <= 3 * 32'd28_000_000;
-
       system_buttons_order <= 1'b1;   // default YX/BA
 
       buttons_irq_enable <= 1'b1;  // allow buttons irq
@@ -89,18 +79,6 @@ always @(posedge clk) begin
       //  bring button state into local clock domain
       buttonsD <= buttons;
       buttonsD2 <= buttonsD;
-
-      // release main reset after timeout
-      if(main_reset_timeout) begin
-	 main_reset_timeout <= main_reset_timeout - 32'd1;
-
-	 if(main_reset_timeout == 32'd1) begin
-	    main_reset <= 1'b0;
-
-	    // BRG LED yellow if no MCU has responded
-	    color <= 24'h000202;
-	 end
-      end
 
       int_ack <= 8'h00;
 
@@ -121,7 +99,7 @@ always @(posedge clk) begin
         if(data_in_start) begin
             state <= 4'd0;
             command <= data_in;
-	    menu_rom_addr <= 12'h000;
+	    menu_rom_addr <= 10'h000;
             data_out <= 8'h00;
         end else begin
             if(state != 4'd15) state <= state + 4'd1;
@@ -133,11 +111,6 @@ always @(posedge clk) begin
                 if(state == 4'd0) data_out <= 8'h5c;   // \ magic marker to identify a valid
                 if(state == 4'd1) data_out <= 8'h42;   // / FPGA core
                 if(state == 4'd2) data_out <= 8'h00;   // core id 0 = Generic core
-            end
-
-            // CMD 1: there are two MCU controlled LEDs
-            if(command == 8'd1) begin
-                if(state == 4'd0) leds <= data_in[1:0];
             end
 
             // CMD 2: a 24 color value to be mapped e.g. onto the ws2812
@@ -162,11 +135,7 @@ always @(posedge clk) begin
 	       // SNES specific control values
                 if(state == 4'd1) begin
                    // Value "R": reset(1) or run(0)
-                   if(id == "R") begin
-		      main_reset <= data_in[0];
-		      // cancel out-timeout if MCU is active
-		      main_reset_timeout <= 32'd0;
-		   end
+                   if(id == "R") main_reset <= data_in[0];
                    if(id == "S") system_buttons_order <= data_in[0];
                 end
             end
@@ -193,7 +162,7 @@ always @(posedge clk) begin
             // CMD 8: read (menu) config
             if(command == 8'd8) begin
 	       data_out <= menu_rom_data;
-	       menu_rom_addr <= menu_rom_addr + 12'd1;
+	       menu_rom_addr <= menu_rom_addr + 10'd1;
 	    end
          end
       end

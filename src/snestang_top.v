@@ -379,6 +379,14 @@ wire [1:0] snes_joy1_di, snes_joy2_di;
 wire [11:0] joy1_btns, joy2_btns;
 wire [11:0] hid1, hid2;
 
+`ifdef MISTLE
+ `define NO_RV
+`endif
+
+`ifdef MCU_BL616
+ `define NO_RV
+`endif
+   
 `ifndef MCU_BL616
 assign hid1 = 12'b0;
 assign hid2 = 12'b0;
@@ -737,6 +745,7 @@ always @(posedge mclk) begin
     end
 end
 
+`ifndef NO_RV
 localparam RV_IDLE_REQ0 = 3'd0;
 localparam RV_WAIT0_REQ1 = 3'd1;
 localparam RV_DATA0 = 3'd2;
@@ -755,13 +764,19 @@ wire [31:0] rv_rdata = {rv_dout, rv_dout0};
 reg         rv_valid_r;
 reg         rv_word;           // which word
 reg         rv_req;            // SDRAM request toggle
-wire        rv_sdram_req_ack;
 wire [15:0] rv_sdram_dout;
 reg [1:0]   rv_ds;
 reg         rv_new_req;
 wire        rv_write = |rv_wstrb;
 wire        rv_new_req_t = rv_valid & ~rv_valid_r;
-`ifdef MCU_BL616
+wire        rv_sdram_req_ack;
+`else
+wire        rv_req = 1'b0;
+wire [15:0] rv_sdram_dout = 16'h0000;
+wire        rv_sdram_req_ack = 1'b0;
+`endif
+
+`ifdef NO_RV
 assign      bsram_rv_write_done = 1'b0;
 `else
 assign      bsram_rv_write_done = rv_ready && rv_write;
@@ -778,7 +793,7 @@ wire        rv_req_ack = rv_bsram_sel ? rv_bram_req_ack : rv_sdram_req_ack;
 wire        rv_req_active = rv_bsram_sel ? rv_bram_req : rv_req;
 wire [15:0] rv_dout = rv_bsram_sel ? rv_bram_dout : rv_sdram_dout;
 wire        bsram_bram_en = resetn;  // continuous read
-`ifdef MCU_BL616
+`ifdef NO_RV
 wire        rv_bram_en = 1'b0;
 `else
 wire        rv_bram_en = resetn && (rv_bram_req ^ rv_bram_req_ack);
@@ -875,9 +890,9 @@ sdram_snes sdram(
     .vram2_req(vram2_req), .vram2_ack(), .vram2_we(~vram2_we_n_r),
 
     // IOSys risc-v softcore
-`ifdef MCU_BL616
-    .rv_addr(), .rv_din(), .rv_dout(),
-    .rv_req(), .rv_req_ack(), .rv_ds(), .rv_we()
+`ifdef NO_RV
+    .rv_addr(22'h00000), .rv_din(16'h0000), .rv_dout(),
+    .rv_req(1'b0), .rv_req_ack(), .rv_ds(2'b00), .rv_we(1'b0)
 `else
     .rv_addr({rv_addr[22:2], rv_word}), .rv_din(rv_word ? rv_wdata[31:16] : rv_wdata[15:0]), .rv_dout(rv_sdram_dout),
     .rv_req(rv_req), .rv_req_ack(rv_sdram_req_ack), .rv_ds(rv_ds), .rv_we(rv_wstrb != 0)
@@ -1042,7 +1057,7 @@ companion companion
     .osd_y(overlay_y),
 
     .buttons({s1,s0}),
-    
+
     // values set via OSD/config file
     .system_reset(osd_reset),
     
@@ -1106,6 +1121,13 @@ iosys_bl616 #(.CORE_ID(CORE_ID), .FREQ(SNES_FREQ)) iosys (
 
 `else
 
+`ifdef LATTICE
+USRMCLK usrmclk (
+    .USRMCLKI(flash_spi_clk),
+    .USRMCLKTS(flash_spi_clk_ts)   // 0 = drive clock, this cannot be a constant!
+) /* synthesis syn_noprune=1 */ ;
+`endif
+
 // IOSys for menu, rom loading...
 `ifndef MISTLE
 `ifdef MCU_SERV
@@ -1135,14 +1157,6 @@ iosys_picorv32
     .sd_clk(sd_clk), .sd_cmd(sd_cmd), .sd_dat0(sd_dat0), .sd_dat1(sd_dat1),
     .sd_dat2(sd_dat2), .sd_dat3(sd_dat3)
 );
-`endif //  `ifndef MISTLE		     
-
-`ifdef LATTICE
-USRMCLK usrmclk (
-    .USRMCLKI(flash_spi_clk),
-    .USRMCLKTS(flash_spi_clk_ts)   // 0 = drive clock, this cannot be a constant!
-) /* synthesis syn_noprune=1 */ ;
-`endif
 
 always @(posedge mclk) begin            // RV
     if (~resetn) begin
@@ -1228,7 +1242,8 @@ always @(posedge mclk) begin            // RV
         endcase
     end
 end
-
+`endif //  `ifndef MISTLE
+		     
 `endif      // MCU_BL616
 
 `else       // VERILATOR

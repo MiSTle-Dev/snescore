@@ -49,14 +49,15 @@ localparam [1:0] UNKNOWN = 2'd0,      // SD card type
                  SDv2    = 2'd2,
                  SDHCv2  = 2'd3;
 
-localparam [15:0] FASTCLKDIV = CLK_DIV;
-localparam [15:0] SLOWCLKDIV = (FASTCLKDIV+1) * (SIMULATE ? 16'd5 : 16'd48);
+// CLK_DIV is <= 2, so SLOWCLKDIV is at most 48*3 = 144. So 8 bit are sufficient
+localparam [7:0] FASTCLKDIV = CLK_DIV;
+localparam [7:0] SLOWCLKDIV = (FASTCLKDIV+1) * (SIMULATE ? 8'd5 : 8'd48);
 
 reg        start  = 1'b0;
 reg [15:0] precnt = 0;
 reg [ 5:0] cmd    = 0;
 reg [31:0] arg    = 0;
-reg [15:0] clkdiv = SLOWCLKDIV;
+reg [7:0]  clkdiv = SLOWCLKDIV;
 reg [31:0] sectoraddr = 0;
 
 wire       busy, done, timeout, syntaxe;
@@ -122,7 +123,7 @@ endfunction
 
 // sd clk enable signals
 wire ena_n, ena_p;   
-   
+
 sdcmd_ctrl u_sdcmd_ctrl (
     .rstn        ( rstn         ),
     .clk         ( clk          ),

@@ -14,7 +14,7 @@ module sdcmd_ctrl (
     inout	       sdcmd,
 		   
     // config clk freq
-    input wire [15:0]  clkdiv,
+    input wire [7:0]   clkdiv,
     output	       ena_n, // falling sd clock edge (writing)
     output	       ena_p, // rising sd clock edge (reading)
 		   
@@ -67,14 +67,17 @@ reg  [ 5:0] resp_cmd;
 reg  [31:0] resp_arg;
 assign resparg = resp_arg;
 
-reg  [17:0] clkdivr = 18'h3FFFF;
-reg  [17:0] clkcnt  = 0;
+// should be size of clkdiv + 2
+localparam CLK_BITS=10;
+   
+reg [CLK_BITS-1:0] clkdivr = {CLK_BITS{1'b1}};
+reg [CLK_BITS-1:0] clkcnt  = 0;
 
 reg  [15:0] cnt  = 0;
 
 // clock counter states at which the sd clock changes
 assign	    ena_n = (clkcnt == clkdivr);
-assign	    ena_p = (clkcnt == {clkdivr[16:0],1'b1});
+assign	    ena_p = (clkcnt == {clkdivr[CLK_BITS-2:0],1'b1});
    
 reg [2:0] state;
 localparam STATE_IDLE     = 3'd0;
@@ -93,7 +96,7 @@ always @ (posedge clk or negedge rstn)
         sdclk <= 1'b0;
         {sdcmdoe, sdcmdout} <= 2'b11;  // drive cmd high while no command in progress
 
-        clkdivr <= 18'h3FFFF;                 // initially clock is divided by 256k
+        clkdivr <= {CLK_BITS{1'b1}};   // initially clock is divided by 256k
         clkcnt  <= 0;
         cnt <= 16'd0;
 
@@ -105,10 +108,10 @@ always @ (posedge clk or negedge rstn)
        // clkdiv == 2 -> 0,1,2 ... 5
        // clkdiv == 1 -> run 0,1,2,3
        // With 16Mhz clock and clk_div == 1, this should result in 16/4 = 4Mhz / 250ns
-       clkcnt <= ( clkcnt < {clkdivr[16:0],1'b1} ) ? (clkcnt+18'd1) : 18'd0;
+       clkcnt <= ( clkcnt < {clkdivr[CLK_BITS-2:0],1'b1} ) ? (clkcnt+1) : 0;
 
        // latch clockdiv at the end of each clock cycle to prevent glitches
-       if (clkcnt == 18'd0) clkdivr <= {2'h0, clkdiv};
+       if (clkcnt == 0) clkdivr <= { {CLK_BITS-8{1'b0}}, clkdiv};
 
        // generate sd clock itself. With 
         if (ena_n)        sdclk <= 1'b0;

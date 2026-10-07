@@ -43,7 +43,7 @@ module companion (
     input [7:0]	  osd_y,
     output [14:0] osd_color,
 
-    input [1:0]   buttons,
+    input [1:0]	  buttons,
 		  
     output [11:0] joy1_btns,
     output [11:0] joy2_btns,
@@ -137,7 +137,7 @@ hid hid (
 
 
 // the osd can be opened via select+start
-wire osd_combo = joy1_btns == 12'b0000_0000_1100;   
+wire osd_combo = joy1_btns == 12'b0000_0000_1100;
      
 sysctrl sysctrl (
         .clk(clk),
@@ -158,7 +158,6 @@ sysctrl sysctrl (
         .int_ack( int_ack ),
 
         .buttons( { buttons[1] || osd_combo, buttons[0] } ),
-        .leds(),
         .color()
 );
    
