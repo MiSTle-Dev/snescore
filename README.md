@@ -4,13 +4,22 @@ This project is based on [nand2mario's SNESTang](https://github.com/nand2mario/s
 
 There is currently an [IcePi-Zero](src/icepi-zero) build with USB HID support. It also works with the [MiSTle IcePi carrier board](https://github.com/MiSTle-Dev/Boards/tree/main/icepi_carrier), which offers broader USB compatibility with IcePi-Zero. Other board configurations are present in the source tree, but the MiSTle port is still in progress.
 
-### USB support
+## MiSTle GW5A-25 and Nano20k
+
+This core can be built to support the MiSTle framework and its FPGA Companion MCU when run on the MiSTle GW5A-25K or the Tang Nano 20k. In this case the
+SNESTangs own On-Screen-Display is being disabled and the MiSTle OSD is being used instead. This can be invoked as usual via F12 if a keyboard is connected
+or by pressing **Select + Start** on the first gamepad.
+
+Due to space constraints only DSP1 is supported on the Nano20k. This is the majority of DSP based games incl. Mario Kart. The MiSTle GW5A-25K supports all
+DSP variants.
+
+## IcePi
 
 The USB HID controllers run in FPGA gateware; IcePi-Zero has no dedicated USB controller chip for them. Some USB HID devices may therefore be incompatible. Each port supports one device, so USB hubs and composite devices such as combined keyboard/mouse units may not work. Low-speed and full-speed USB 2.0 HID devices are the intended devices. This limitation is also described in the [IcePi-Zero Minimig USB support notes](https://github.com/m1nl/icepi-zero-minimig/blob/main/README.md#usb-support).
 
 On IcePi-Zero, the first player uses the second USB port, the one closer to the PCB edge, for easier physical access. The other USB port is for the second player.
 
-## Controller buttons
+### Controller buttons
 
 Controllers without dedicated Start and Select buttons can use these chords:
 
@@ -48,6 +57,15 @@ openFPGALoader -b icepi-zero --write-flash path/to/core.bit
 ```
 
 Replace `path/to/core.bit` with the path to the built bitstream. Flash the firmware before using the core.
+
+## Flashing MiSTle GW5A-25k and MiSTle Tang Nano 20k
+
+Since these use the MiSTle framework and don't use an FPGA embedded MCU, no firmware needs to be flashed. Just the core
+bitstream itself has to be installed:
+
+```sh
+openFPGALoader path/to/core.fs
+```
 
 ## Development and credits
 
