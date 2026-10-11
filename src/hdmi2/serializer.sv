@@ -203,6 +203,7 @@ module serializer
         // TMDS clock channel (50% duty cycle at pixel rate)
         // ----------------------------------------------------
         logic [9:0] clk_shift;
+        logic [1:0] clk_out;
 
         always_ff @(posedge clk_pixel_x5) begin
             if (reset)
@@ -213,10 +214,13 @@ module serializer
                 clk_shift <= {2'b0, clk_shift[9:2]};
         end
 
+        always_ff @(posedge clk_pixel_x5)
+            clk_out <= clk_shift[1:0];
+
         ODDRX1F u_clk (
             .Q    (tmds_clock),
-            .D0   (clk_shift[0]),
-            .D1   (clk_shift[1]),
+            .D0   (clk_out[0]),
+            .D1   (clk_out[1]),
             .SCLK (clk_pixel_x5),
             .RST  (reset)
         );
