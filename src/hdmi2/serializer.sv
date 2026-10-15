@@ -158,14 +158,64 @@ module serializer
 
         assign tmds_clock = clk_pixel;
     `elsif LATTICE
-        // Modulo-5 counter in the 5x domain drives load vs shift
-        logic [2:0] bit_cnt = 3'd4;
+        // Flush all three marker-history registers before releasing control.
+        (* ASYNC_REG = "TRUE" *) reg [2:0] reset_x5_sync = 3'b111;
 
-        always_ff @(posedge clk_pixel_x5) begin
+        wire reset_x5 = reset_x5_sync[2];
+
+        always_ff @(posedge clk_pixel_x5, posedge reset) begin
             if (reset)
-                bit_cnt <= 3'd4;
+                reset_x5_sync <= 3'b111;
             else
-                bit_cnt <= (bit_cnt == 3'd4) ? 3'd0 : bit_cnt + 3'd1;
+                reset_x5_sync <= {reset_x5_sync[1:0], 1'b0};
+        end
+
+        // Acquire the word phase from a pixel edge after every reset.
+        logic pixel_toggle = 1'b0;
+        always_ff @(posedge clk_pixel, posedge reset) begin
+            if (reset)
+                pixel_toggle <= 1'b0;
+            else
+                pixel_toggle <= ~pixel_toggle;
+        end
+
+        (* ASYNC_REG = "TRUE" *) logic [1:0] pixel_toggle_sync = 2'b00;
+        logic pixel_toggle_prev = 1'b0;
+
+        // Keep the marker pipeline running during reset so phase acquisition
+        // sees a fresh pixel edge after reset_x5 releases.
+        always_ff @(posedge clk_pixel_x5) begin
+            pixel_toggle_sync <= {pixel_toggle_sync[0], pixel_toggle};
+            pixel_toggle_prev <= pixel_toggle_sync[1];
+        end
+
+        wire pixel_event = pixel_toggle_sync[1] ^ pixel_toggle_prev;
+
+        logic phase_locked  = 1'b0;
+        logic [2:0] bit_cnt = 3'd0;
+        logic periodic_load = 1'b0;
+
+        wire load_word = phase_locked ? periodic_load : pixel_event;
+
+        // Capture about 2-3 fast ticks after the pixel edge.
+        // Once acquired, keep exactly five ticks per word.
+        always_ff @(posedge clk_pixel_x5, posedge reset_x5) begin
+            if (reset_x5)
+                phase_locked <= 1'b0;
+            else if (load_word)
+                phase_locked <= 1'b1;
+        end
+
+        // Acquisition initializes the counter, and the unlocked phase forces
+        // the registered load low before it is selected. Neither needs reset.
+        always_ff @(posedge clk_pixel_x5) begin
+            // Decode one tick early so the shift-register load path
+            // starts at a flip-flop, preserving the count-4 load edge.
+            periodic_load <= phase_locked && (bit_cnt == 3'd3);
+            bit_cnt <= bit_cnt + 3'd1;
+
+            if (load_word)
+                bit_cnt <= 3'd0;
         end
 
         // ----------------------------------------------------
@@ -177,11 +227,11 @@ module serializer
             logic [9:0] shift;
             logic [1:0] out;
 
+            // The first word load overwrites every bit; startup contents
+            // are irrelevant while acquiring the serializer phase.
             always_ff @(posedge clk_pixel_x5) begin
-                if (reset)
-                    shift <= 10'b0;
-                else if (bit_cnt == 3'd4)
-                    shift <= tmds_internal[i];   // load at end of each pixel period
+                if (load_word)
+                    shift <= tmds_internal[i];
                 else
                     shift <= {2'b0, shift[9:2]}; // shift by 2: DDR outputs 2 bits per cycle
             end
@@ -194,7 +244,7 @@ module serializer
                 .D0   (out[0]),     // bit on rising edge
                 .D1   (out[1]),     // bit on falling edge
                 .SCLK (clk_pixel_x5),
-                .RST  (reset)
+                .RST  (reset_x5)
             );
         end
         endgenerate
@@ -206,9 +256,7 @@ module serializer
         logic [1:0] clk_out;
 
         always_ff @(posedge clk_pixel_x5) begin
-            if (reset)
-                clk_shift <= 10'b0;
-            else if (bit_cnt == 3'd4)
+            if (load_word)
                 clk_shift <= 10'b0000011111;
             else
                 clk_shift <= {2'b0, clk_shift[9:2]};
@@ -222,7 +270,7 @@ module serializer
             .D0   (clk_out[0]),
             .D1   (clk_out[1]),
             .SCLK (clk_pixel_x5),
-            .RST  (reset)
+            .RST  (reset_x5)
         );
     `else
         logic [9:0] tmds_reversed [NUM_CHANNELS-1:0];
