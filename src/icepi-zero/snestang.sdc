@@ -7,11 +7,11 @@ create_generated_clock -name hclk -source [get_nets {hclk5}] -master_clock hclk5
 
 create_clock -name uclk -period 16.667 -waveform {0 8.3335} [get_nets {uclk}]
 
-create_clock -name clk_audio -period 20833 -waveform {0 10416} [get_nets {s2h/clk_audio}]
+create_clock -name clk_audio -period 20833.333 -waveform {0 10416.667} [get_nets {s2h.clk_audio_3}]
 
 create_clock -name mcu_clk -period 50 -waveform {0 25} [get_ports {mcu_clk}] -add
 
-set_clock_groups -asynchronous -group [get_clocks {clk_sys mclk fclk}] -group [get_clocks {hclk hclk5}] -group [get_clocks {clk_audio}] -group [get_clocks {mcu_clk}] -group [get_clocks {uclk}]
+set_clock_groups -asynchronous -group [get_clocks {sys_clk mclk fclk}] -group [get_clocks {hclk hclk5}] -group [get_clocks {clk_audio}] -group [get_clocks {mcu_clk}] -group [get_clocks {uclk}]
 
 # see start of sdram_snes.v for detailed timing of sdram
 # SNES to sdram, 3*fclk
@@ -19,7 +19,8 @@ set_multicycle_path 3 -setup -end -from [get_clocks {mclk}] -to [get_clocks {fcl
 set_multicycle_path 2 -hold -end -from [get_clocks {mclk}] -to [get_clocks {fclk}]
 
 # SNES to BSRAM cache, 1*fclk
-set_multicycle_path 1 -setup -end -from [get_nets {bsram_*}] -to [get_clocks {fclk}]
+set_multicycle_path 1 -setup -end -from [get_cells {bsram_*}] -to [get_clocks {fclk}]
+set_multicycle_path 0 -hold -end -from [get_cells {bsram_*}] -to [get_clocks {fclk}]
 
 # sdram to SNES
 set_multicycle_path 3 -setup -start -from [get_clocks {fclk}] -to [get_clocks {mclk}]
@@ -32,7 +33,7 @@ set_multicycle_path 2 -hold -start -from [get_clocks {fclk}] -to [get_clocks {mc
 # false paths
 set_false_path -from [get_clocks {uclk}] -to [get_clocks {mclk}]
 #set_false_path -from [get_cells {main/SNES/smp/CPUO*}] -to [get_cells {sdram/dq_out*}]
-set_false_path -from [get_nets {smc_*}]
+set_false_path -from [get_cells {smc.ram_mask* smc.ram_size* smc.rom_mask* smc.rom_size* smc.rom_type*}]
 
 # The hdmi audio sample words cross from the 48kHz audio clock into the pixel
 # clock domain through a toggle handshake: the data is written a full audio
@@ -40,5 +41,23 @@ set_false_path -from [get_nets {smc_*}]
 # single cycle relationship the analyzer assumes here is meaningless. Left
 # unconstrained the path is only met by lucky placement, and when it is not
 # the captured sample words pick up wrong bits - audible as noisy samples.
-set_false_path -to [get_cells {*packet_picker/audio_clock_regeneration_packet/clk_audio_counter_wrap_synchronizer_chain*}]
-set_false_path -from [get_cells {*packet_picker/audio_sample_word_transfer*}] -to [get_cells {*packet_picker/audio_sample_word_buffer*}]
+set_false_path -to [get_cells {*packet_picker*audio_clock_regeneration_packet*clk_audio_counter_wrap_synchronizer_chain*}]
+set_false_path -from [get_cells {*packet_picker*audio_sample_word_transfer*}] -to [get_cells {*packet_picker*audio_sample_word_buffer*}]
+
+# Direct word capture has at least two destination-clock cycles.
+set_multicycle_path 2 -setup -end -from [get_cells {s2h.hdmi.tmds_gen*.tmds_channel.*}] -to [get_cells {s2h.hdmi.serializer.g_ser*.shift*}]
+set_multicycle_path 1 -hold -end -from [get_cells {s2h.hdmi.tmds_gen*.tmds_channel.*}] -to [get_cells {s2h.hdmi.serializer.g_ser*.shift*}]
+
+# Only the first pixel-marker synchronizer stage is exempt.
+set_false_path -to [get_cells {s2h.hdmi.serializer.pixel_toggle_sync[0]}]
+
+# Clock going to SDRAM (180° shifted)
+create_generated_clock -name sdram_clk -source [get_nets {fclk}] -phase 180 [get_ports O_sdram_clk]
+
+# Data/address/command setup requirement
+set_output_delay -clock sdram_clk -max 1.5 [get_ports {O_sdram_*}]
+set_output_delay -clock sdram_clk -max 1.5 [get_ports {IO_sdram_*}]
+
+# Hold requirement
+set_output_delay -clock sdram_clk -min -0.8 [get_ports {O_sdram_*}]
+set_output_delay -clock sdram_clk -min -0.8 [get_ports {IO_sdram_*}]

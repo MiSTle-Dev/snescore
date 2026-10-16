@@ -270,16 +270,16 @@ BLOCK PATH FROM CLKNET "hclk5" TO CLKNET "fclk";
 BLOCK PATH FROM CLKNET "hclk5" TO CLKNET "mclk";
 BLOCK PATH FROM CLKNET "hclk5" TO CLKNET "uclk";
 
+MULTICYCLE FROM CLKNET "mclk" TO CLKNET "fclk" 3X ;
+MULTICYCLE FROM CLKNET "fclk" TO CLKNET "mclk" 3X_SOURCE ;
+
+# SNES to BSRAM cache, 1*fclk
+MULTICYCLE FROM CELL "bsram_*" TO CLKNET "fclk" 1X ;
+
 BLOCK PATH FROM CLKNET "uclk" TO CLKNET "fclk";
 BLOCK PATH FROM CLKNET "uclk" TO CLKNET "mclk";
 BLOCK PATH FROM CLKNET "uclk" TO CLKNET "hclk";
 BLOCK PATH FROM CLKNET "uclk" TO CLKNET "hclk5";
-
-MULTICYCLE FROM CLKNET "mclk" TO CLKNET "fclk" 3X ;
-MULTICYCLE FROM CLKNET "fclk" TO CLKNET "mclk" 3X_SOURCE ;
-
-BLOCK PATH TO CELL "*packet_picker/audio_clock_regeneration_packet/clk_audio_counter_wrap_synchronizer_chain*" ;
-BLOCK PATH FROM CELL "*packet_picker/audio_sample_word_transfer*" ;
 
 BLOCK PATH FROM CELL "*smc/ram_mask*" ;
 BLOCK PATH FROM CELL "*smc/ram_size*" ;
@@ -287,12 +287,19 @@ BLOCK PATH FROM CELL "*smc/rom_mask*" ;
 BLOCK PATH FROM CELL "*smc/rom_size*" ;
 BLOCK PATH FROM CELL "*smc/rom_type*" ;
 
-CLOCK_TO_OUT PORT "O_sdram_cs_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
-CLOCK_TO_OUT PORT "O_sdram_addr*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
-CLOCK_TO_OUT PORT "IO_sdram_dq*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
-CLOCK_TO_OUT PORT "O_sdram_wen_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
-CLOCK_TO_OUT PORT "O_sdram_ras_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
-CLOCK_TO_OUT PORT "O_sdram_cas_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
-CLOCK_TO_OUT PORT "O_sdram_cke*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
-CLOCK_TO_OUT PORT "O_sdram_ba*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
-CLOCK_TO_OUT PORT "O_sdram_dqm*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "clk_sys" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
+BLOCK PATH TO CELL "*packet_picker/audio_clock_regeneration_packet/clk_audio_counter_wrap_synchronizer_chain*" ;
+BLOCK PATH FROM CELL "*packet_picker/audio_sample_word_transfer*" ;
+
+MULTICYCLE FROM CELL "s2h/hdmi/tmds_gen*.tmds_channel/*" TO CELL "s2h/hdmi/serializer/g_ser*.shift*" 2X ;
+BLOCK PATH TO CELL "s2h/hdmi/serializer/pixel_toggle_sync[0]" ;
+
+# for some reason routing hangs when uncommented
+# CLOCK_TO_OUT PORT "O_sdram_cs_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
+# CLOCK_TO_OUT PORT "O_sdram_addr*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
+# CLOCK_TO_OUT PORT "IO_sdram_dq*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
+# CLOCK_TO_OUT PORT "O_sdram_wen_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
+# CLOCK_TO_OUT PORT "O_sdram_ras_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
+# CLOCK_TO_OUT PORT "O_sdram_cas_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
+# CLOCK_TO_OUT PORT "O_sdram_cke*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
+# CLOCK_TO_OUT PORT "O_sdram_ba*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
+# CLOCK_TO_OUT PORT "O_sdram_dqm*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;

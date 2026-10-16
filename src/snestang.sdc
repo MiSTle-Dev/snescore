@@ -39,4 +39,5 @@ set_false_path -from [get_nets {smc_*}]
 // single cycle relationship the analyzer assumes here is meaningless. Left
 // unconstrained the path is only met by lucky placement, and when it is not
 // the captured sample words pick up wrong bits - audible as noisy samples.
-set_false_path -from [get_regs {*packet_picker/audio_sample_word_transfer*}] -to [get_regs {*packet_picker/audio_sample_word_buffer*}]
+set_false_path -to [get_regs {*packet_picker*audio_clock_regeneration_packet*clk_audio_counter_wrap_synchronizer_chain*}]
+set_false_path -from [get_regs {*packet_picker*audio_sample_word_transfer*}] -to [get_regs {*packet_picker*audio_sample_word_buffer*}]
