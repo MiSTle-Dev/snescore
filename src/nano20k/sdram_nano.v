@@ -44,10 +44,12 @@
 // ACKs at cycle 7. RV ACKs at its cycle-3/6 CAS command. Reads return at
 // cycles 5, 6, and 2 for channels 0, 1, and 2 respectively.
 //
-// A rising clkref edge realigns an idle schedule to cycle 4. Busy channels
+// A rising clkref edge realigns an idle schedule to cycle 3. Busy channels
 // keep their reserved transaction until its command/data sequence completes.
 //
 // The board SDC gives transfers between mclk and clk multicycle timing.
+// VRAM request toggles have a separate one-fast-cycle constraint because the
+// cycle-2 refresh decision must see requests captured on the preceding mclk edge.
 // Recheck those constraints when changing the frame schedule or clock phase:
 //
 // set_multicycle_path 3 -setup -end -from [get_clocks {mclk}] -to [get_clocks {fclk}]
@@ -151,7 +153,8 @@ module sdram_snes
     output reg        vram2_ack,
     input             vram2_we,
 
-    // Upcoming VRAM request
+    // Shared interface compatibility. Nano uses the registered request toggles
+    // with cycle-3 alignment, so this live PPU lookahead is intentionally unused.
     input             vram_pending,
 
     // RISC-V softcore
@@ -457,7 +460,7 @@ always @(posedge clk, negedge resetn) begin
 
             if (clkref && ~clkref_r && !refresh &&
                 !(|oe_latch) && !(|we_latch)) begin
-                cycle <= 8'b00010000;  // go to cycle 4 (critical for BSRAM)
+                cycle <= 8'b00001000;  // cycle 3: refresh sees registered VRAM requests
             end
 
             if (!(&refresh_cnt))
@@ -507,9 +510,11 @@ always @(posedge clk, negedge resetn) begin
                     cmd <= CMD_BankActivate;
             end
 
-            // Refresh only with channels 0/1 idle and no pending or upcoming VRAM request.
+            // The cycle-3 alignment puts this decision one fast clock after the
+            // mclk request capture. Check registered toggles, not the live PPU
+            // address calculation: pending requests exclude the next VRAM slot.
             if (cycle[2] && do_refresh &&
-                !vram_pending && (vram1_req == vram1_ack) && (vram2_req == vram2_ack) &&
+                (vram1_req == vram1_ack) && (vram2_req == vram2_ack) &&
                 !we_latch[0] && !oe_latch[0] && !we_latch[1] && !oe_latch[1]) begin
                 refresh <= 1'b1;
                 refresh_cnt <= 0;

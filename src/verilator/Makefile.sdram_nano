@@ -1,0 +1,20 @@
+IVERILOG ?= iverilog
+VVP ?= vvp
+BUILD_DIR ?= /tmp/snestang-sdram-nano
+SOURCES := ../nano20k/sdram_nano.v tb_sdram_nano.sv
+TESTS := $(foreach phase,0 1 2 3,$(foreach bs,0 1,$(foreach rom,0 1,$(BUILD_DIR)/phase$(phase)-bs$(bs)-rom$(rom))))
+.PHONY: test
+test: $(TESTS)
+	@set -e; for test in $(TESTS); do $(VVP) $$test; done
+$(BUILD_DIR)/phase%-bs0-rom0: $(SOURCES) Makefile.sdram_nano
+	@mkdir -p $(BUILD_DIR)
+	$(IVERILOG) -g2012 -Wall -Wno-timescale -DVERILATOR -s tb_sdram_nano -Ptb_sdram_nano.CLOCK_PHASE=$* -Ptb_sdram_nano.DONE_DELAY=0 -Ptb_sdram_nano.ROM_DELAY=0 -o $@ $(SOURCES)
+$(BUILD_DIR)/phase%-bs0-rom1: $(SOURCES) Makefile.sdram_nano
+	@mkdir -p $(BUILD_DIR)
+	$(IVERILOG) -g2012 -Wall -Wno-timescale -DVERILATOR -s tb_sdram_nano -Ptb_sdram_nano.CLOCK_PHASE=$* -Ptb_sdram_nano.DONE_DELAY=0 -Ptb_sdram_nano.ROM_DELAY=1 -o $@ $(SOURCES)
+$(BUILD_DIR)/phase%-bs1-rom0: $(SOURCES) Makefile.sdram_nano
+	@mkdir -p $(BUILD_DIR)
+	$(IVERILOG) -g2012 -Wall -Wno-timescale -DVERILATOR -s tb_sdram_nano -Ptb_sdram_nano.CLOCK_PHASE=$* -Ptb_sdram_nano.DONE_DELAY=1 -Ptb_sdram_nano.ROM_DELAY=0 -o $@ $(SOURCES)
+$(BUILD_DIR)/phase%-bs1-rom1: $(SOURCES) Makefile.sdram_nano
+	@mkdir -p $(BUILD_DIR)
+	$(IVERILOG) -g2012 -Wall -Wno-timescale -DVERILATOR -s tb_sdram_nano -Ptb_sdram_nano.CLOCK_PHASE=$* -Ptb_sdram_nano.DONE_DELAY=1 -Ptb_sdram_nano.ROM_DELAY=1 -o $@ $(SOURCES)

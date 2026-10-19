@@ -267,7 +267,9 @@ add_file -type vhdl "src/chip/GSU/GSU.vhd"
 add_file -type vhdl "src/SWRAM.vhd"
 add_file -type verilog "src/uart_tx_V2.v"
 
-if {$controller eq "mistle"} {
+if {$dev eq "nano20k"} {
+    add_file -type sdc "src/nano20k/snestang.sdc"
+} elseif {$controller eq "mistle"} {
     add_file -type sdc "src/snestang_mistle.sdc"
 } else {
     add_file -type sdc "src/snestang.sdc"
