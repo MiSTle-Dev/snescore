@@ -56,7 +56,11 @@ reg [7:0] menu_rom_data;
 // gzip snes.xml
 // xxd -c1 -p snes.xml.gz > snes_xml.hex
 reg [7:0] snes_xml[1024];
+`ifdef LATTICE
+initial $readmemh("../mistle/snes_xml.hex", snes_xml);
+`else
 initial $readmemh("snes_xml.hex", snes_xml);
+`endif
 
 always @(posedge clk)
      menu_rom_data <= snes_xml[menu_rom_addr];

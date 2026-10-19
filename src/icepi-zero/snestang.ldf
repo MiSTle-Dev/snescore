@@ -261,6 +261,27 @@
         <Source name="../mistle/mcu_spi.v" type="Verilog" type_short="Verilog">
             <Options/>
         </Source>
+        <Source name="../mistle/companion.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../mistle/sysctrl.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../mistle/osd_u8g2.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../mistle/sd_card.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../mistle/sd_rw.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../mistle/sdcmd_ctrl.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="sector_dpram.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
         <Source name="snestang.lpf" type="Logic Preference" type_short="LPF">
             <Options/>
         </Source>

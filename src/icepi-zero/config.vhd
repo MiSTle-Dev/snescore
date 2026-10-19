@@ -20,7 +20,7 @@ package board_config is
 
     constant CONTROLLER_SNES   : boolean := false;
     constant CONTROLLER_DS2    : boolean := false;
-    constant CONTROLLER_MISTLE : boolean := true;
+    constant MISTLE            : boolean := true;
 
     constant SDRAM_DATA_WIDTH : integer := 16;
     constant SDRAM_ROW_WIDTH  : integer := 13;
@@ -30,6 +30,7 @@ package board_config is
     constant PIXEL_FREQ : integer := 74_174_400;
 
     constant S0_N : boolean := true;
+    constant S1_N : boolean := true;
     constant LED_N : boolean := false;
 
 end package board_config;

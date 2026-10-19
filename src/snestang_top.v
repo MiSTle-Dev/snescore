@@ -67,38 +67,40 @@ module snestang_top #(
 
     // MicroSD
 `ifdef MISTLE
-    output			    sdclk,
-    inout			    sdcmd,
-    inout [3:0]			    sddat, 
+    output      sdclk,
+    inout       sdcmd,
+    inout [3:0] sddat,
 
 `ifdef VERILATOR
     // in simulation there is no SPI interface to the companion
-    input			    mcu_data_strobe,
-    input			    mcu_data_start,
-    output [7:0]		    mcu_data_in,
-    input [7:0]			    mcu_data_out,
-    output			    mcu_irq,
-    input			    mcu_iack, 
+    input mcu_data_strobe,
+    input mcu_data_start,
+    output mcu_irq,
+    input  mcu_iack,
+
+    output [7:0] mcu_data_in,
+    input  [7:0] mcu_data_out,
+
 `else
     // FPGA Companion
-    input			    mcu_din,
-    output			    mcu_dout,
-    input			    mcu_clk,
-    input			    mcu_ss,
-    output			    mcu_intn,
-    input			    mcu_spare,
+    input mcu_din,
+    output mcu_dout,
+    input mcu_clk,
+    input mcu_ss,
+    output mcu_intn,
+    input mcu_spare,
 
 `ifdef S1_N
-    input                           s1_n,
+    input s1_n,
 `else
-    input                           s1,
+    input s1,
 `endif
 `endif
 
 `else
     output sd_clk,
-    inout  sd_cmd,      // MOSI
-    input  sd_dat0,     // MISO
+    inout sd_cmd,      // MOSI
+    input sd_dat0,     // MISO
     output sd_dat1,
     output sd_dat2,
     output sd_dat3,
@@ -138,8 +140,8 @@ module snestang_top #(
 
 `ifdef CONTROLLER_USB_HID
     // Two USB HID gamepads; each port is connected directly to USB D+/D-.
-    inout [1:0] usb_dp,
-    inout [1:0] usb_dn,
+    inout  [1:0] usb_dp,
+    inout  [1:0] usb_dn,
     output [1:0] usb_pull_dp,
     output [1:0] usb_pull_dn,
 `endif
@@ -156,9 +158,11 @@ module snestang_top #(
     output O_sdram_cas_n,           // columns address select
     output O_sdram_ras_n,           // row address select
     output O_sdram_wen_n,           // write enable
-    inout [SDRAM_DATA_WIDTH-1:0] IO_sdram_dq,       // bidirectional SDRAM data bus
+
+    inout [SDRAM_DATA_WIDTH-1:0] IO_sdram_dq,      // bidirectional SDRAM data bus
     output [SDRAM_ROW_WIDTH-1:0] O_sdram_addr,     // multiplexed SDRAM row/column address
-    output [SDRAM_DATA_WIDTH/8-1:0] O_sdram_dqm,       //
+    output [SDRAM_DATA_WIDTH/8-1:0] O_sdram_dqm,
+
     output [1:0] O_sdram_ba,        // 4 banks
 `endif
 
@@ -472,7 +476,7 @@ wire loading, header_finished;
 `ifdef MISTLE
 wire header_ok;
 `endif
-   
+
 reg loaded;
 
 reg [22:0] loader_addr = 0;
@@ -489,7 +493,7 @@ wire refresh;
 wire snes_enable;
 
 // values set via OSD (if present)
-wire	osd_reset;   
+wire	osd_reset;
 
 reg snes_resetn = 1'b0;
 
@@ -1106,13 +1110,13 @@ assign joy2_btns = usb_game_buttons[1];
 // -------------------------------------------------------------------------------
 // ------------------------------ MiSTle integration -----------------------------
 // -------------------------------------------------------------------------------
-	     
+
 wire [14:0] overlay_color;
 wire [7:0] overlay_x;
 wire [7:0] overlay_y;
 
 `ifdef MISTLE
-companion companion 
+companion companion
    (
     .clk(mclk), .resetn(resetn),
 
@@ -1138,7 +1142,7 @@ companion companion
 
     // values set via OSD/config file
     .system_reset(osd_reset),
-    
+
     // wire up two joysticks/gamepads
     .joy1_btns(joy1_btns),
     .joy2_btns(joy2_btns),
@@ -1148,11 +1152,11 @@ companion companion
     .loading(loading), .header_ok(header_ok)
 );
 `else
-assign osd_reset = 1'b0;		     
+assign osd_reset = 1'b0;
 `endif //  `ifdef MISTLE
 
 // -------------------------------------------------------------------------------
-		     
+
 // output button presses to SNES
 controller_adapter joy1_adapter (
     .clk(mclk), .snes_joy_strb(snes_joy_strb),
@@ -1321,13 +1325,13 @@ always @(posedge mclk) begin            // RV
     end
 end
 `endif //  `ifndef MISTLE
-		     
+
 `endif      // MCU_BL616
 
 `else       // VERILATOR
 
 `ifdef MISTLE
-companion companion 
+companion companion
    (
     .clk(mclk), .resetn(resetn),
 
@@ -1338,13 +1342,13 @@ companion companion
     .sdc_data_out(mcu_data_in),
     .mcu_data_out(mcu_data_out),
     .sdc_int(mcu_irq),
-    .sdc_iack(mcu_iack),        
-    
+    .sdc_iack(mcu_iack),
+
     .dout(loader_do), .dout_valid(loader_do_valid), .dout_ready(loader_do_ready),
     .loading(loading),
-    
+
     .header_ok(header_ok)
-);   
+);
 `else
 // test loader with embedded rom
 test_loader test_loader (
@@ -1353,7 +1357,7 @@ test_loader test_loader (
     .loading(loading), .fail()
 );
 `endif
-		     
+
 // test audio sink: FIFO-like rate limiting to sound sample generation
 reg [3:0] sample_counter = 0;
 
