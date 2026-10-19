@@ -31,6 +31,7 @@ GSU_VHDL = $D/chip/GSU/GSU_PKG.vhd $D/dpram_difclk.vhd \
 GHDL_SRCS = $(GHDL_DIR)/DSP.v $(GHDL_DIR)/SMP.v $(GHDL_DIR)/SPPU.v \
 	$(GHDL_DIR)/CEGen.v $(GHDL_DIR)/CPU.v $(GHDL_DIR)/SWRAM.v $(GHDL_DIR)/SNES.v \
 	$(GHDL_DIR)/DSPn.v $(GHDL_DIR)/DSP_LHRomMap.v \
+	$(GHDL_DIR)/OBC1.v $(GHDL_DIR)/SRTC.v \
 	$(GHDL_DIR)/GSU.v $(GHDL_DIR)/GSUMap.v
 SRCS = $D/verilator/test_loader.v $D/verilator/sdr_chip_model.v \
 	$D/bsram_cache.v $D/sdram_cl2_3ch.v \
@@ -38,7 +39,6 @@ SRCS = $D/verilator/test_loader.v $D/verilator/sdr_chip_model.v \
 	$D/verilator/spram.v \
 	$D/snestang_top.v $D/rst_sync.v $D/main.v \
 	$D/ppuhoam.v $D/ppuoam.v $D/ppusprbuf.v $D/ppucgram.v \
-	$D/chip/DSP/OBC1.v $D/chip/DSP/SRTC.v \
 	$D/smc_parser.v $D/mega138k/vram.v $(GHDL_SRCS)
 
 # Optional compile-time default; at runtime use: ./Vsnestang_top -r roms/game.hex
@@ -110,6 +110,14 @@ $(GHDL_DIR)/DSPn.v: $(GHDL_CONFIG) $(DSPN_VHDL) | $(GHDL_DIR)
 
 $(GHDL_DIR)/DSP_LHRomMap.v: $(GHDL_CONFIG) $(DSP_MAP_VHDL) | $(GHDL_DIR)
 	cd $(PROJECT_ROOT) && $(GHDL) synth $(GHDL_FLAGS) --vendor-library=work $(abspath $(GHDL_CONFIG)) $(abspath $(DSP_MAP_VHDL)) -e DSP_LHRomMap > $(abspath $@.tmp)
+	mv $@.tmp $@
+
+$(GHDL_DIR)/OBC1.v: $D/chip/DSP/OBC1.vhd | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) $< -e OBC1 > $@.tmp
+	mv $@.tmp $@
+
+$(GHDL_DIR)/SRTC.v: $D/chip/SRTC.vhd | $(GHDL_DIR)
+	$(GHDL) synth $(GHDL_FLAGS) $< -e SRTC > $@.tmp
 	mv $@.tmp $@
 
 $(GHDL_DIR)/GSU.v: $(GHDL_CONFIG) $(GSU_VHDL) | $(GHDL_DIR)
