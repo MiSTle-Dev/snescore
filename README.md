@@ -2,7 +2,7 @@
 
 This project is based on [nand2mario's SNESTang](https://github.com/nand2mario/snestang) and is a work in progress to bring it to the [MiSTle framework](https://github.com/MiSTle-Dev). It retains the improvements from nand2mario's project while adapting the core and its I/O system for MiSTle boards.
 
-There is currently an [IcePi-Zero](src/icepi-zero) build with USB HID support. It also works with the [MiSTle IcePi carrier board](https://github.com/MiSTle-Dev/Boards/tree/main/icepi_carrier), which offers broader USB compatibility with IcePi-Zero. Other board configurations are present in the source tree, but the MiSTle port is still in progress.
+Supported boards include [IcePi Zero](src/icepi-zero), [IcePi Zero XL](src/icepi-zero-xl), [MiSTle GW5A-25K (`mistle_gw5a_25`)](src/mistle_gw5a_25), and Tang Nano 20k. Both IcePi devices have USB HID support. IcePi Zero also works with the [MiSTle IcePi carrier board](https://github.com/MiSTle-Dev/Boards/tree/main/icepi_carrier), which offers broader USB compatibility.
 
 ## MiSTle GW5A-25 and Nano20k
 
@@ -10,10 +10,13 @@ This core can be built to support the MiSTle framework and its FPGA Companion MC
 SNESTangs own On-Screen-Display is being disabled and the MiSTle OSD is being used instead. This can be invoked as usual via F12 if a keyboard is connected
 or by pressing **Select + Start** on the first gamepad.
 
-Due to space constraints only DSP1 is supported on the Nano20k. This is the majority of DSP based games incl. Mario Kart. The MiSTle GW5A-25K supports all
-DSP variants.
+The MiSTle GW5A-25K (`mistle_gw5a_25`) supports all DSP variants and the GSU (Super FX) chip. Its larger 25K FPGA provides the resources needed for GSU support, together with a two-way BSRAM cache. This allows games such as Super Mario World 2: Yoshi's Island and Star Fox to run.
+
+The Tang Nano 20k supports only DSP1 due to FPGA space constraints, covering most DSP-based games, including Super Mario Kart. It does not support GSU (Super FX) games.
 
 ## IcePi
+
+Both IcePi Zero and IcePi Zero XL support DSP cartridge add-on chips. IcePi Zero XL also supports the GSU (Super FX) chip, allowing games such as Super Mario World 2: Yoshi's Island and Star Fox to run.
 
 The USB HID controllers run in FPGA gateware; IcePi-Zero has no dedicated USB controller chip for them. Some USB HID devices may therefore be incompatible. Each port supports one device, so USB hubs and composite devices such as combined keyboard/mouse units may not work. Low-speed and full-speed USB 2.0 HID devices are the intended devices. This limitation is also described in the [IcePi-Zero Minimig USB support notes](https://github.com/m1nl/icepi-zero-minimig/blob/main/README.md#usb-support).
 
