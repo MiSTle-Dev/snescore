@@ -387,17 +387,17 @@ wire       snes_joy1_clk, snes_joy2_clk;
 wire [1:0] snes_joy1_di, snes_joy2_di;
 
 // Controller sources share a wired OR so enabled controllers can coexist.
-wire [11:0] joy1_btns, joy2_btns;
+wor  [11:0] joy1_btns, joy2_btns;
 wire [11:0] hid1, hid2;
 
 `ifdef MISTLE
- `define NO_RV
+`define NO_RV
 `endif
 
 `ifdef MCU_BL616
- `define NO_RV
+`define NO_RV
 `endif
-   
+
 `ifndef MCU_BL616
 assign hid1 = 12'b0;
 assign hid2 = 12'b0;
@@ -493,7 +493,7 @@ wire refresh;
 wire snes_enable;
 
 // values set via OSD (if present)
-wire	osd_reset;
+wire osd_reset;
 
 reg snes_resetn = 1'b0;
 
@@ -538,11 +538,11 @@ main #(
 
     .GSU_ACTIVE(GSU_ACTIVE), .GSU_RAM_ACCESS(GSU_RAM_ACCESS), .GSU_ROM_ACCESS(GSU_ROM_ACCESS),
 
-    .BSRAM_ADDR(BSRAM_ADDR), .BSRAM_D(BSRAM_D),	.BSRAM_Q(BSRAM_Q),
+    .BSRAM_ADDR(BSRAM_ADDR), .BSRAM_D(BSRAM_D), .BSRAM_Q(BSRAM_Q),
     .BSRAM_CE_N(BSRAM_CE_N), .BSRAM_OE_N(BSRAM_OE_N), .BSRAM_WE_N(BSRAM_WE_N),
     .BSRAM_RD_N(BSRAM_RD_N), .BSRAM_DONE(BSRAM_DONE),
 
-    .WRAM_ADDR(WRAM_ADDR), .WRAM_D(WRAM_D),	.WRAM_Q(WRAM_Q),
+    .WRAM_ADDR(WRAM_ADDR), .WRAM_D(WRAM_D), .WRAM_Q(WRAM_Q),
     .WRAM_CE_N(WRAM_CE_N), .WRAM_OE_N(WRAM_OE_N), .WRAM_WE_N(WRAM_WE_N),
     .WRAM_RD_N(WRAM_RD_N),
 
