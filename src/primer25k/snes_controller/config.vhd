@@ -17,6 +17,7 @@ package board_config is
     constant BSRAM_CACHE : boolean := true;
 
     constant CHIP_DSPn : boolean := true;
+    constant DSP1_ROM_LIMIT : boolean := false;
     constant CHIP_GSU  : boolean := false;
 
     constant CONTROLLER_SNES   : boolean := true;
