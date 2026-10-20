@@ -133,7 +133,7 @@ module tb_sdram_3ch_shared;
     wire [15:0] rv_dout;
     wire refreshing,ready;
     wire [23:0] total_refresh;
-    sdram_snes_gsu #(.BSRAM_DONE_DELAY(DONE_DELAY),.ROM_DONE_DELAY(ROM_DELAY)) dut(.*);
+    sdram_snes #(.BSRAM_DONE_DELAY(DONE_DELAY),.ROM_DONE_DELAY(ROM_DELAY)) dut(.*);
     test_sdram #(.ROW_BITS(ROW_BITS)) chip(
         .clk(~clk), .addr(SDRAM_A), .ba(SDRAM_BA), .dqm(SDRAM_DQM),
         .cs_n(SDRAM_nCS), .ras_n(SDRAM_nRAS), .cas_n(SDRAM_nCAS),
