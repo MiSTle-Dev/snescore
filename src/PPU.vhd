@@ -974,6 +974,7 @@ variable OPTH_EN, OPTV_EN : std_logic;
 variable IS_OPT : std_logic;
 variable OPT_HOFS, OPT_VOFS : unsigned(9 downto 0);
 variable MOSAIC_Y : unsigned(7 downto 0);
+variable MOSAIC_Y_I : unsigned(8 downto 0);
 variable TILE_INFO_N : unsigned(9 downto 0);
 variable TILE_INFO_HFLIP : std_logic;
 variable TILE_INFO_VFLIP : std_logic;
@@ -1059,19 +1060,21 @@ begin
 			OFFSET_X := resize(SCREEN_X(8 downto 3)&"000", OFFSET_X'length) + unsigned(BG_HOFS(BF_BG));
 		end if;
 	end if;
-
 	
 	if BF_MODE = BF_OPT0 then
 		OFFSET_Y := unsigned(BG_VOFS(BF_BG));
 	elsif BF_MODE = BF_OPT1 then
 		OFFSET_Y := unsigned(BG_VOFS(BF_BG)) + 8;
 	else
-		if IS_OPT = '1' and OPTV_EN = '1' then	--OPT
-			OFFSET_Y := resize(MOSAIC_Y, OFFSET_Y'length) + OPT_VOFS;
-		elsif HIRES = '1' and BGINTERLACE = '1' then
-			OFFSET_Y := resize(MOSAIC_Y & FIELD, OFFSET_Y'length) + unsigned(BG_VOFS(BF_BG));
+		if HIRES = '1' and BGINTERLACE = '1' then
+			MOSAIC_Y_I := MOSAIC_Y & FIELD;
 		else
-			OFFSET_Y := resize(MOSAIC_Y, OFFSET_Y'length) + unsigned(BG_VOFS(BF_BG));
+			MOSAIC_Y_I := "0" & MOSAIC_Y;
+		end if;
+		if IS_OPT = '1' and OPTV_EN = '1' then	--OPT
+			OFFSET_Y := resize(MOSAIC_Y_I, OFFSET_Y'length) + OPT_VOFS;
+		else
+			OFFSET_Y := resize(MOSAIC_Y_I, OFFSET_Y'length) + unsigned(BG_VOFS(BF_BG));
 		end if;
 	end if;
 	
