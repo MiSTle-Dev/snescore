@@ -116,7 +116,8 @@ module bsram_cache #(parameter SET_BITS = 10) (
                     if (pending_we) begin
                         data_we = 1;
                         data_din = block ? {pending_din, data_q[7:0]} : {data_q[15:8], pending_din};
-                        way_meta_din = {tag, (dirty | byte_mask), (valid | byte_mask)};
+                        // A hit already guarantees the selected tag matches.
+                        way_meta_din = {pending_tag, (dirty | byte_mask), (valid | byte_mask)};
                     end
                 end
                 WAIT_FILL: if (!pending_inhibit[1] && sd_done != sd_done_seen) begin
@@ -133,7 +134,9 @@ module bsram_cache #(parameter SET_BITS = 10) (
                 end
                 default: begin end
             endcase
-            if (meta_we && state != CLEAR) begin
+            // The RAM write enable gates the commit; keep it out of the
+            // write-data path from hit detection back into the metadata RAM.
+            if (state != CLEAR) begin
                 if (selected_way)
                     meta_din[2*WAY_META_BITS-1:WAY_META_BITS] = way_meta_din;
                 else
