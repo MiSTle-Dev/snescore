@@ -27,10 +27,16 @@
         <Source name="../sdram_cl2_3ch.v" type="Verilog" type_short="Verilog">
             <Options/>
         </Source>
+        <Source name="../bsram_cache.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
         <Source name="../dpram.vhd" type="VHDL" type_short="VHDL">
             <Options/>
         </Source>
         <Source name="../spram.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../dpram_difclk.vhd" type="VHDL" type_short="VHDL">
             <Options/>
         </Source>
         <Source name="../CEGen.vhd" type="VHDL" type_short="VHDL">
@@ -117,13 +123,25 @@
         <Source name="../chip/SRTC.vhd" type="VHDL" type_short="VHDL">
             <Options/>
         </Source>
+        <Source name="../chip/GSU/GSU.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../chip/GSU/GSU_PKG.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
+        <Source name="../chip/GSU/GSUMap.vhd" type="VHDL" type_short="VHDL">
+            <Options/>
+        </Source>
         <Source name="../SMP.vhd" type="VHDL" type_short="VHDL">
             <Options/>
         </Source>
         <Source name="../SWRAM.vhd" type="VHDL" type_short="VHDL">
             <Options/>
         </Source>
-        <Source name="../CPU.vhd" type="VHDL" type_short="VHDL">
+        <Source name="../CPU.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../CPU_components.vhd" type="VHDL" type_short="VHDL">
             <Options/>
         </Source>
         <Source name="../SNES.vhd" type="VHDL" type_short="VHDL">

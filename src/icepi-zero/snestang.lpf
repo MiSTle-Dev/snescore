@@ -293,6 +293,14 @@ BLOCK PATH FROM CELL "*packet_picker/audio_sample_word_transfer*" ;
 MULTICYCLE FROM CELL "s2h/hdmi/tmds_gen*.tmds_channel/*" TO CELL "s2h/hdmi/serializer/g_ser*.shift*" 2X ;
 BLOCK PATH TO CELL "s2h/hdmi/serializer/pixel_toggle_sync[0]" ;
 
+MULTICYCLE FROM CELL "main/SNES/CPU/P65C816/MCode/*" TO CELL "main/SNES/CPU/P65C816/*" 2X;
+MULTICYCLE FROM ASIC "main/SNES/CPU/P65C816/MCode/m_tab_m_tab_0_0" PIN "*" TO CELL "main/SNES/CPU/P65C816/*" 2X;
+MULTICYCLE FROM ASIC "main/SNES/CPU/P65C816/MCode/m_tab_m_tab_0_1" PIN "*" TO CELL "main/SNES/CPU/P65C816/*" 2X;
+MULTICYCLE FROM ASIC "main/SNES/CPU/P65C816/MCode/m_tab_m_tab_0_2" PIN "*" TO CELL "main/SNES/CPU/P65C816/*" 2X;
+MULTICYCLE FROM ASIC "main/SNES/CPU/P65C816/MCode/m_tab_m_tab_0_3" PIN "*" TO CELL "main/SNES/CPU/P65C816/*" 2X;
+MULTICYCLE FROM ASIC "main/SNES/CPU/P65C816/MCode/m_tab_m_tab_0_4" PIN "*" TO CELL "main/SNES/CPU/P65C816/*" 2X;
+MULTICYCLE FROM ASIC "main/SNES/CPU/P65C816/MCode/m_tab_m_tab_0_5" PIN "*" TO CELL "main/SNES/CPU/P65C816/*" 2X;
+
 # for some reason routing hangs when uncommented
 # CLOCK_TO_OUT PORT "O_sdram_cs_n*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;
 # CLOCK_TO_OUT PORT "O_sdram_addr*" OUTPUT_DELAY 1.5 ns MIN 0.8 ns CLKNET "fclk" CLKOUT PORT "O_sdram_clk" CLK_OFFSET 0.5 X ;

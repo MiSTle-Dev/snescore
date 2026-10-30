@@ -5,6 +5,7 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.STD_LOGIC_TEXTIO.all;
+use work.CPU_components.all;
 
 entity SNES is
 	port(
@@ -218,7 +219,7 @@ begin
 	GG_AVAILABLE <= '0';
 
 	-- CPU
-	CPU : entity work.SCPU
+	CPU : SCPU
 	port map(
 		CLK			=> MCLK,
 		RST_N			=> RST_N and not SPC_MODE,

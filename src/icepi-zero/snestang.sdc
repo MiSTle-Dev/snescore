@@ -48,6 +48,9 @@ set_false_path -from [get_cells {*packet_picker*audio_sample_word_transfer*}] -t
 set_multicycle_path 2 -setup -end -from [get_cells {s2h.hdmi.tmds_gen*.tmds_channel.*}] -to [get_cells {s2h.hdmi.serializer.g_ser*.shift*}]
 set_multicycle_path 1 -hold -end -from [get_cells {s2h.hdmi.tmds_gen*.tmds_channel.*}] -to [get_cells {s2h.hdmi.serializer.g_ser*.shift*}]
 
+set_multicycle_path 2 -setup -end -from [get_cells {main.SNES.CPU.P65C816.MCode.*}] -to [get_cells {main.SNES.CPU.P65C816.*}]
+set_multicycle_path 1 -hold -end -from [get_cells {main.SNES.CPU.P65C816.MCode.*}] -to [get_cells {main.SNES.CPU.P65C816.*}]
+
 # Only the first pixel-marker synchronizer stage is exempt.
 set_false_path -to [get_cells {s2h.hdmi.serializer.pixel_toggle_sync[0]}]
 

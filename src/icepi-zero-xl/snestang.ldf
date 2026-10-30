@@ -144,7 +144,10 @@
         <Source name="../SWRAM.vhd" type="VHDL" type_short="VHDL">
             <Options/>
         </Source>
-        <Source name="../CPU.vhd" type="VHDL" type_short="VHDL">
+        <Source name="../CPU.v" type="Verilog" type_short="Verilog">
+            <Options/>
+        </Source>
+        <Source name="../CPU_components.vhd" type="VHDL" type_short="VHDL">
             <Options/>
         </Source>
         <Source name="../SNES.vhd" type="VHDL" type_short="VHDL">
