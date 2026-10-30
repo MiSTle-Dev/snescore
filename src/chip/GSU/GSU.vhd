@@ -895,6 +895,8 @@ begin
 		variable A, B : unsigned(15 downto 0);
 		variable TEMP : unsigned(16 downto 0);
 		variable MUL_TEMP : signed(31 downto 0);
+		variable ARITH_B : unsigned(15 downto 0);
+		variable ARITH_CI : unsigned(16 downto 0);
 	begin
 		A := unsigned(R(to_integer(SREG)));
 		if FLAG_ALT2 = '1' and (OP.OP = OP_ADD or OP.OP = OP_SUB or OP.OP = OP_AND or OP.OP = OP_MULT or OP.OP = OP_UMULT or OP.OP = OP_OR or OP.OP = OP_XOR) then
@@ -902,8 +904,21 @@ begin
 		else
 			B := unsigned(R(to_integer(OP_N)));
 		end if;
-
-		TEMP := to_unsigned(0, TEMP'length);
+		ARITH_B := B;
+		ARITH_CI := to_unsigned(0, 17);
+		if OP.OP = OP_SUB or OP.OP = OP_CMP then
+			ARITH_B := not B;
+			ARITH_CI(0) := '1';
+			if OP.OP = OP_SUB then
+				ARITH_CI(0) := not (FLAG_ALT1 and not FLAG_CY);
+			end if;
+		else
+			ARITH_CI(0) := FLAG_ALT1 and FLAG_CY;
+		end if;
+		TEMP := ('0' & A) + ('0' & ARITH_B) + ARITH_CI;
+		if OP.OP = OP_SUB or OP.OP = OP_CMP then
+			TEMP(16) := not TEMP(16);
+		end if;
 		MUL_TEMP := to_signed(0, MUL_TEMP'length);
 		
 		ALUR <= (others => '0');
@@ -915,17 +930,17 @@ begin
 		elsif OP.OP = OP_NOT then
 			ALUR <= std_logic_vector(not A);
 		elsif OP.OP = OP_ADD then
-			TEMP := ("0" & A) + ("0" & B) + ((0 to 15 => '0') & (FLAG_ALT1 and FLAG_CY));
+			-- TEMP is computed by the shared arithmetic path.
 			ALUR <= std_logic_vector(TEMP(15 downto 0));
 			ALUOV <= (A(15) xor TEMP(15)) and (B(15) xor TEMP(15));
 			ALUCY <= TEMP(16);
 		elsif OP.OP = OP_SUB then
-			TEMP := ("0" & A) - ("0" & B) - ((0 to 15 => '0') & (FLAG_ALT1 and not FLAG_CY));
+			-- TEMP is computed by the shared arithmetic path.
 			ALUR <= std_logic_vector(TEMP(15 downto 0));
 			ALUOV <= (A(15) xor B(15)) and (A(15) xor TEMP(15));
 			ALUCY <= not TEMP(16);
 		elsif OP.OP = OP_CMP then
-			TEMP := ("0" & A) - ("0" & B);
+			-- TEMP is computed by the shared arithmetic path.
 			ALUR <= std_logic_vector(TEMP(15 downto 0));
 			ALUOV <= (A(15) xor B(15)) and (A(15) xor TEMP(15));
 			ALUCY <= not TEMP(16);
