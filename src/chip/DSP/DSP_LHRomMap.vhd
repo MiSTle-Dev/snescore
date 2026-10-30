@@ -8,7 +8,9 @@ use IEEE.STD_LOGIC_TEXTIO.all;
 
 entity DSP_LHRomMap is
 	generic (
-		USE_DSPn	: integer := 1
+		USE_DSPn	: integer := 1;
+		USE_OBC1	: integer := 0;
+		USE_SRTC	: integer := 0
 	);
 	port(
 		MCLK			: in std_logic;
@@ -300,6 +302,7 @@ begin
 	);
 	end generate;
 
+	OBC1_BLOCK: if USE_OBC1 = 1 generate
 	OBC1 : entity work.OBC1
 	port map(
 		CLK			=> MCLK,
@@ -319,7 +322,9 @@ begin
 		SRAM_DI  	=> BSRAM_Q,
 		SRAM_DO		=> OBC1_SRAM_DO
 	);
+	end generate;
 
+	SRTC_BLOCK: if USE_SRTC = 1 generate
 	SRTC : entity work.SRTC
 	port map(
 		CLK			=> MCLK,
@@ -335,6 +340,8 @@ begin
 
 		EXT_RTC		=> EXT_RTC
 	);
+	end generate;
+
 	
 	--Competition Cart
 	process (MCLK, RST_N)
@@ -346,8 +353,7 @@ begin
 			CC_TM_CNT <= (others => '0');
 		elsif rising_edge(MCLK) then
 			CC_TM_DIV <= CC_TM_DIV + 1;
---			if CC_TM_DIV = 21477270*60-1 then
-			if CC_TM_DIV = 21484400*60-1 then
+			if CC_TM_DIV = 21477270*60-1 then
 				CC_TM_DIV <= 0;
 				if CC_TM_CNT = 0 then
 					CC_SR1 <= CC_TM_ON;
