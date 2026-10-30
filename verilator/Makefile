@@ -21,7 +21,7 @@ CPU_VHDL = $D/CPU.vhd $D/65C816/P65816_pkg.vhd $D/65C816/BCDAdder.vhd \
 	$D/65C816/MCode.vhd $D/65C816/P65C816.vhd
 SWRAM_VHDL = $D/SWRAM.vhd
 SNES_VHDL = $(CPU_VHDL) $(SWRAM_VHDL) $(PPU_VHDL) $(SMP_VHDL) \
-	$(DSP_VHDL) $D/SNES.vhd
+	$(DSP_VHDL) $D/CPU_components.vhd $D/SNES.vhd
 DSPN_VHDL = $D/spram.vhd $D/dpram.vhd $D/chip/DSP/DSPn.vhd
 DSP_MAP_VHDL = $D/CEGen.vhd $(DSPN_VHDL) $D/chip/DSP/OBC1.vhd \
 	$D/chip/SRTC.vhd $D/chip/DSP/DSP_LHRomMap.vhd
