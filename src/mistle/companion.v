@@ -18,7 +18,7 @@ module companion (
     inout	  sd_cmd,
     inout [3:0]	  sd_dat,
 
-`ifdef VERILATOR		     
+`ifdef VERILATOR
     // This interface is only exposed in simulation when there
     // is no spi bus and the sd card interface is driven directly
     input	  mcu_sdc_strobe,
@@ -36,6 +36,16 @@ module companion (
     output	  mcu_intn,
     input	  mcu_spare,
 
+`ifdef MCU_ALT
+    // Alternate Companion SPI interface
+    // e.g. for the bl616 on the tang nano 20k
+    input   mcu_alt_din,
+    output  mcu_alt_dout,
+    input   mcu_alt_clk,
+    input   mcu_alt_ss,
+    output  mcu_alt_intn,
+`endif
+
      // OSD video overlay
     input	  osd_clk,
     output	  osd_enable,
@@ -44,14 +54,14 @@ module companion (
     output [14:0] osd_color,
 
     input [1:0]	  buttons,
-		  
+
     output [11:0] joy1_btns,
     output [11:0] joy2_btns,
 
     output	  system_reset,
 `endif
-		  
-    // rom loader interface	  
+
+    // rom loader interface
     output [7:0]  dout,
     output	  dout_valid,
     input	  dout_ready,
@@ -59,7 +69,7 @@ module companion (
     input	  header_ok
 );
 
-`ifndef VERILATOR		     
+`ifndef VERILATOR
 `ifdef LATTICE
 // filter companion SPI clock
 wire [15:0] mcu_clk_i_d = { mcu_clk_i_d[14:0], mcu_clk } /* synthesis syn_keep=1 */ /* synthesis syn_dont_touch=1 */;
@@ -70,19 +80,19 @@ wire mcu_clk_i = mcu_clk;
 `endif
 
 // 0=xy/ab, 1=yx/ba
-wire       system_buttons_order;   
+wire       system_buttons_order;
 
-wire       mcu_data_strobe;   
-wire	   mcu_data_start;   
-wire [7:0] mcu_data_in;   
-wire [7:0] mcu_data_out;   
+wire       mcu_data_strobe;
+wire	   mcu_data_start;
+wire [7:0] mcu_data_in;
+wire [7:0] mcu_data_out;
 
 wire       mcu_sys_strobe;        // mcu message byte valid for sysctrl
 wire       mcu_hid_strobe;        // -"- hid
 wire       mcu_osd_strobe;        // -"- osd
 
-wire [7:0] sys_data_out;  
-wire [7:0] hid_data_out;  
+wire [7:0] sys_data_out;
+wire [7:0] hid_data_out;
 wire [7:0] osd_data_out = 8'h55;  // OSD actually has no data output
 
 `ifndef VERILATOR
@@ -90,15 +100,53 @@ wire [7:0] osd_data_out = 8'h55;  // OSD actually has no data output
 wire       mcu_sdc_strobe;        // -"- sdc
 wire [7:0] sdc_data_out;
 `endif
-   
+
+`ifdef MCU_ALT
+// intn and dout are outputs driven by the FPGA to the MCU
+// din, ss and clk are inputs coming from the MCU
+// onboard connection to on-board BL616 only newer 3921 assemblies
+assign mcu_alt_intn = mcu_intn;
+assign mcu_alt_dout = mcu_dout;
+
+// by default the alternate mcu is being used. Once there is
+// a select from the main mcu, then the connection is
+// being switched
+reg mcu_active_main;
+always @(posedge clk) begin
+    if(!resetn)
+        mcu_active_main = 1'b0;
+    else begin
+        // mcu_active_main is activated once the regulatar/external companion
+        // drives ss low. This means that the external companion
+        // is connected and the FPGA switches its inputs to the
+        // main ones. Until then the inputs of the alternate companion are
+        // being used.
+        if(mcu_ss == 1'b0)
+            mcu_active_main = 1'b1;
+    end
+end
+
+// switch between internal SPI connected to the on-board bl616
+// or to the external one possibly connected to a M0S Dock
+wire mcu_active_din = mcu_active_main?mcu_din:mcu_alt_din;
+wire mcu_active_ss = mcu_active_main?mcu_ss:mcu_alt_ss;
+wire mcu_active_clk = mcu_active_main?mcu_clk:mcu_alt_clk;
+`endif
+
 mcu_spi mcu (
   .clk(clk),
   .reset(!resetn),
 
   // SPI interface to FPGA Companion
+`ifdef MCU_ALT
+  .spi_io_ss (mcu_active_ss),
+  .spi_io_clk(mcu_active_clk),
+  .spi_io_din(mcu_active_din),
+`else
   .spi_io_ss (mcu_ss),
   .spi_io_clk(mcu_clk),
   .spi_io_din(mcu_din),
+`endif
   .spi_io_dout(mcu_dout),
 
   // byte wide data in/out to the submodules
@@ -114,13 +162,13 @@ mcu_spi mcu (
   .mcu_sdc_din(sdc_data_out)
 );
 
-wire [7:0] int_ack;   
+wire [7:0] int_ack;
 `ifndef VERILATOR
 // these are provided externally in simulation
 wire sdc_iack = int_ack[3];
 wire sdc_int;
 `endif
-   
+
 hid hid (
   .clk(clk),
   .reset(!resetn),
@@ -138,7 +186,7 @@ hid hid (
 
 // the osd can be opened via select+start
 wire osd_combo = joy1_btns == 12'b0000_0000_1100;
-     
+
 sysctrl sysctrl (
         .clk(clk),
         .reset(!resetn),
@@ -160,7 +208,7 @@ sysctrl sysctrl (
         .buttons( { buttons[1] || osd_combo, buttons[0] } ),
         .color()
 );
-   
+
 osd_u8g2 osd_u8g2 (
         .clk(clk),
         .reset(!resetn),
@@ -175,58 +223,58 @@ osd_u8g2 osd_u8g2 (
         .osd_x(osd_x),
         .osd_y(osd_y),
         .osd_color(osd_color)
-);   
+);
 
 `endif
 
 // -------------------------- rom loader --------------------------
 reg [1:0] state;
-   
-wire [23:0] image_size;     // cartridge image size   
+
+wire [23:0] image_size;     // cartridge image size
 wire image_mounted;
 
 
 // IO requests to sd card
-reg	   sd_rd;   
-reg [31:0] sd_sector;   
-wire	   sd_busy;   
-wire	   sd_done;   
+reg	   sd_rd;
+reg [31:0] sd_sector;
+wire	   sd_busy;
+wire	   sd_done;
 
-// data from sd card   
+// data from sd card
 wire sd_outen;
 wire [8:0] sd_outaddr;
-wire [7:0] sd_outdata;  
+wire [7:0] sd_outdata;
 
 // number of data sectors expected during download
-reg [14:0] rom_data_sectors;   
-   
+reg [14:0] rom_data_sectors;
+
 assign dout = sd_outdata;
-assign dout_valid = 
+assign dout_valid =
 	    ((state == 2'd1) && sd_outen && (sd_outaddr < 64)) ||
 	    ((state == 2'd2) && sd_outen && (sd_outaddr >= 448)) ||
-	    ((state == 2'd3) && sd_outen);   
-   
+	    ((state == 2'd3) && sd_outen);
+
 always @(posedge clk) begin
    if(!resetn) begin
       state <= 2'd0;
       sd_rd <= 1'b0;
-      loading <= 1'b0;      
+      loading <= 1'b0;
    end else begin
       // sd card has delivered one byte
       if(sd_outen && (state == 2'd0))
 	   $display("companion.v: Unexpeced sd card data");
-      
+
       if(sd_busy)
 	sd_rd <= 1'b0;
-      
+
       if(sd_done) begin
 	 // reading header sector from begin of file
 	 if(state == 2'd1) begin
 	    $display("companion.v: prepended header sector done: %d", header_ok);
 
-	    if(header_ok) begin	    	    
-	       sd_sector <= 32'd1;	    
-	       state <= 2'd3;		  
+	    if(header_ok) begin
+	       sd_sector <= 32'd1;
+	       state <= 2'd3;
 	       sd_rd <= 1'b1;
 	    end else begin
 	       $display("companion.v: header parsing finally failed");
@@ -238,13 +286,13 @@ always @(posedge clk) begin
 
 	    // the embedded header may either be at offset $7fc0 or $ffc0. We
 	    // check $ffc0 first and if the result does not seem to be a
-	    // valid header, then we check at $7fc0	    
+	    // valid header, then we check at $7fc0
 	    $display("companion.v: embedded header sector done: %d", header_ok);
 
 	    // check if header was detected ok
-	    if(header_ok) begin	    
-	       state <= 2'd3;		  
-	       sd_sector <= 32'd0;	    
+	    if(header_ok) begin
+	       state <= 2'd3;
+	       sd_sector <= 32'd0;
 	       sd_rd <= 1'b1;
 	    end else if(sd_sector == 32'd127) begin
 	       sd_sector <= 32'd63;
@@ -252,23 +300,23 @@ always @(posedge clk) begin
 	    end else begin
 	       $display("companion.v: header parsing finally failed");
 	    end
-	       
+
 	 end // if (state == 2'd2)
 
 	 // reading data sector
 	 if(state == 2'd3) begin
-	    rom_data_sectors <= rom_data_sectors - 15'd1;	    
-	    
+	    rom_data_sectors <= rom_data_sectors - 15'd1;
+
 	    if(rom_data_sectors > 1) begin
 	       sd_sector <= sd_sector + 32'd1;
 	       sd_rd <= 1'b1;
 	    end else begin
-	      loading <= 1'b0;	    
+	      loading <= 1'b0;
 	       state <= 2'd0;
 	    end
 	 end
       end // if (sd_done)
-      
+
       // wait for image to be mounted which means a cartridge
       // is inserted
       if(image_mounted) begin
@@ -276,12 +324,12 @@ always @(posedge clk) begin
 	 // 128 and may have an addional 512 byte header
 	 // we can load images up to 4MB
 
-// TODO: save some LUTs by removing these tests	 
-//	 if((image_size & 24'hfe0000) && 
+// TODO: save some LUTs by removing these tests
+//	 if((image_size & 24'hfe0000) &&
 //	    !(image_size & 24'h1fdff) &&
 //	    ((image_size & 24'hfe0000) <= 24'd4194304)) begin
-	    
-	    if(image_size[9]) begin	       
+
+	    if(image_size[9]) begin
 	       // some files have a 512 byte header of which the first
 	       // 64 bytes are of interest
 	       state <= 2'd1;
@@ -295,18 +343,18 @@ always @(posedge clk) begin
 	       rom_data_sectors <= image_size[23:9];
 	       sd_sector <= 32'd127;
 	    end
-	    
+
 	    // start download
-	    sd_rd <= 1'b1;      
-	    loading <= 1'b1;	       
-	    
+	    sd_rd <= 1'b1;
+	    loading <= 1'b1;
+
 //	 end else begin
 //	    $display("companion.v: Unsupported image size: %0d", image_size & 24'hfe0000 );
 //	    // TODO: show some visible sign of this failure ...
 //	 end // else: !if((image_size & 24'hfe0000) &&...
       end
    end // else: !if(!resetn)
-end // always @ (posedge clk)   
+end // always @ (posedge clk)
 
 sd_card #(
     .CLK_DIV(3'd0)                  // for 21 Mhz clock
@@ -316,7 +364,7 @@ sd_card #(
 ) sd_card (
     .rstn(resetn),                  // rstn active-low, 1:working, 0:reset
     .clk(clk),                      // clock
-  
+
     // SD card signals
     .sdclk(sd_clk),
     .sdcmd(sd_cmd),
@@ -329,14 +377,14 @@ sd_card #(
     .data_in(mcu_data_out),
 
     .irq(sdc_int),
-    .iack(sdc_iack),	   
-	   
+    .iack(sdc_iack),
+
     .image_mounted(image_mounted),
     .image_size(image_size),           // length of image file
 
     // user read sector command interface (sync with clk32)
-    .rstart(sd_rd), 
-    .wstart(1'b0), 
+    .rstart(sd_rd),
+    .wstart(1'b0),
     .rsector(sd_sector),
     .rbusy(sd_busy),
     .rdone(sd_done),
@@ -347,5 +395,5 @@ sd_card #(
     .outaddr(sd_outaddr),   // outaddr from 0 to 511, because the sector size is 512
     .outbyte(sd_outdata)    // a byte of sector content
 );
-   
+
 endmodule

@@ -15,6 +15,9 @@
 // enable the mistle framework (incl. its controller ports)
 `define MISTLE
 
+// enable alternative MCU wiring (internal bl616)
+`define MCU_ALT
+
 `define SDRAM_DATA_WIDTH 32
 `define SDRAM_ROW_WIDTH 11
 // `define SDRAM_16M

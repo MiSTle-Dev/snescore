@@ -52,9 +52,11 @@ module snestang_top #(
     input s0,
 `endif
 
-    // UART
+`ifndef MCU_ALT
+    // UART is used by internal bl616 companion when MCU_ALT flag is set
     input UART_RXD,
     output UART_TXD,
+`endif
 
     // HDMI TX
     output       tmds_clk_p,
@@ -89,6 +91,16 @@ module snestang_top #(
     input mcu_ss,
     output mcu_intn,
     input mcu_spare,
+
+`ifdef MCU_ALT
+    // the nano has a second companion interface used when the
+    // on-board bl616 is being used as the companion
+    input spi_sclk,   // in
+    input spi_csn,    // in
+    output spi_dir,   // out
+    input spi_dat,    // in
+    output spi_irqn,  // out
+`endif
 
 `ifdef S1_N
     input s1_n,
@@ -853,17 +865,15 @@ wire        rv_sdram_req_ack = 1'b0;
 `ifdef BSRAM_BRAM
 // IOSys maps 0x700000-0x7fffff to BSRAM. The 64 KiB block RAM mirrors
 // throughout that window, as it does for the SNES BSRAM address port.
+reg         bsram_bram_req_ack;
+wire        bsram_bram_en = resetn;  // continuous read
+`ifndef NO_RV
 wire        rv_bsram_sel = rv_addr[22:20] == 3'b111;
 reg         rv_bram_req, rv_bram_req_ack;
 wire [15:0] rv_bram_dout;
-reg         bsram_bram_req_ack;
 wire        rv_req_ack = rv_bsram_sel ? rv_bram_req_ack : rv_sdram_req_ack;
 wire        rv_req_active = rv_bsram_sel ? rv_bram_req : rv_req;
 wire [15:0] rv_dout = rv_bsram_sel ? rv_bram_dout : rv_sdram_dout;
-wire        bsram_bram_en = resetn;  // continuous read
-`ifdef NO_RV
-wire        rv_bram_en = 1'b0;
-`else
 wire        rv_bram_en = resetn && (rv_bram_req ^ rv_bram_req_ack);
 `endif
 
@@ -871,22 +881,34 @@ bsram_bram bsram_mem (
     .clk(mclk),
     .snes_en(bsram_bram_en), .snes_addr(BSRAM_ADDR[15:0]),
     .snes_we(bsram_wr), .snes_din(BSRAM_D), .snes_dout(bsram_dout),
+`ifdef NO_RV
+    .rv_en(1'b0), .rv_addr(16'h00000),
+    .rv_we(1'b0), .rv_ds(2'b00),
+    .rv_din(16'h0000), .rv_dout()
+`else
     .rv_en(rv_bram_en), .rv_addr({rv_addr[15:2], rv_word}),
     .rv_we(rv_write), .rv_ds(rv_ds),
     .rv_din(rv_word ? rv_wdata[31:16] : rv_wdata[15:0]), .rv_dout(rv_bram_dout)
+`endif
 );
 
 always @(posedge mclk) begin
     if (~resetn) begin
         bsram_bram_req_ack <= 0;
+`ifndef NO_RV
         rv_bram_req_ack <= 0;
+`endif
 
     end else begin
         bsram_bram_req_ack <= bsram_req;
+`ifndef NO_RV
         rv_bram_req_ack <= rv_bram_req;
+`endif
     end
 end
+
 assign bsram_req_ack = bsram_bram_req_ack;
+
 `else
 wire        rv_req_ack = rv_sdram_req_ack;
 wire        rv_req_active = rv_req;
@@ -1130,6 +1152,16 @@ companion companion
     .mcu_ss(mcu_ss),
     .mcu_intn(mcu_intn),
     .mcu_spare(mcu_spare),
+
+`ifdef MCU_ALT
+    // Alternate Companion SPI interface
+    // e.g. for the bl616 on the tang nano 20k
+    .mcu_alt_din(spi_dat),
+    .mcu_alt_dout(spi_dir),
+    .mcu_alt_clk(spi_sclk),
+    .mcu_alt_ss(spi_csn),
+    .mcu_alt_intn(spi_irqn),
+`endif
 
     // integrate OSD into video data
     .osd_clk(hclk),
